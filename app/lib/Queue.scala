@@ -39,9 +39,14 @@ class KinesisQueue @javax.inject.Inject() (
 
   private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
 
+  def toSnakeCase(name: String): String = {
+    "[A-Z\\d]".r.replaceAllIn(name, {m => "_" + m.group(0).toLowerCase()})
+  }
+
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = typeOf[T].toString match {
     case ApidocClass(service, version, className) => {
-      val name = s"${FlowEnvironment.Current}.$service.$version.$className.json"
+      val snakeClassName = toSnakeCase(className)
+      val name = s"${FlowEnvironment.Current}.$service.$version.$snakeClassName.json"
       KinesisStream(client, name)
     }
 
