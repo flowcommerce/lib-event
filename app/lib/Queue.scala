@@ -18,86 +18,66 @@ import java.nio.ByteBuffer
 import collection.JavaConverters._
 
 trait Queue {
-  def publish[T: TypeTag](event: JsValue)(implicit ec: ExecutionContext)
-  def consume[T: TypeTag](f: JsValue => _)(implicit ec: ExecutionContext)
+  def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T]
 }
 
-@javax.inject.Singleton
+trait Stream[T] {
+  def publish(event: JsValue)(implicit ec: ExecutionContext)
+  def consume(f: JsValue => _)(implicit ec: ExecutionContext)
+}
+
 class KinesisQueue @javax.inject.Inject() (
   config: io.flow.play.util.Config
 ) extends Queue {
 
-  private[this] lazy val credentials = new BasicAWSCredentials(
+  private[this] val credentials = new BasicAWSCredentials(
     config.requiredString("aws.access.key"),
     config.requiredString("aws.secret.key")
   )
-  private[this] lazy val client = new AmazonKinesisClient(credentials)
+
+  private[this] val client = new AmazonKinesisClient(credentials)
+
+  private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
+
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T] = typeOf[T].toString match {
+    case ApidocClass(service, version, className) => {
+      val name = s"${FlowEnvironment.Current}.$service.v$version.$className.json"
+      KinesisStream[T](client, name)
+    }
+
+    case "Any" => {
+      sys.error(s"In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
+    }
+
+    case other => {
+      sys.error(s"Could not parse stream name of type[$other]. Expected something like io.flow.user.v0.models.Event")
+    }
+  }
+
+}
+
+case class KinesisStream[T](
+  client: AmazonKinesisClient,
+  name: String
+) (
+  implicit ec: ExecutionContext
+) extends Stream[T] {
+
   private[this] val recordLimit = 1000
   private[this] val shardCreateCount = 1
-  private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
-  private[this] val setupStreams = scala.collection.mutable.Set[String]()
 
-  def getStreamName(service: String, version: String, klass: String): String = {
-    s"${FlowEnvironment.Current}.$service.$version.$klass.json"
+  setup
+
+  def publish(event: JsValue)(implicit ec: ExecutionContext) {
+    val partitionKey = name // TODO: Figure out what this should be based on available TypeRef vals
+    val data = Json.stringify(event)
+    insertMessage(partitionKey, data)
   }
 
-  def publish[T: TypeTag](event: JsValue)(implicit ec: ExecutionContext) {
-    typeOf[T].toString match {
-      case ApidocClass(service, majorVersion, className) => {
-        val streamName = getStreamName(service, majorVersion, className.toLowerCase)
-        val partitionKey = streamName // TODO: Figure out what this should be based on available TypeRef vals
-        val data = Json.stringify(event)
-        insertMessage(streamName, partitionKey, data)
-      }
-      case _ => {
-        sys.error("Could not parse type")
-      }
-    }
-  }
-
-  def consume[T: TypeTag](f: JsValue => _)(implicit ec: ExecutionContext) {
-    typeOf[T].toString match {
-      case ApidocClass(service, majorVersion, className) => {
-        val streamName = getStreamName(service, majorVersion, className.toLowerCase)
-        ensureSetup(streamName)
-
-        processMessages(streamName, f).recover {
-          case e: Throwable => {
-            sys.error(s"Error processing stream $streamName: $e")
-          }
-        }
-      }
-
-      case "Any" => {
-        sys.error(s"In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
-      }
-
-      case other => {
-        sys.error(s"Could not parse stream name of type[$other]. Expected something like io.flow.user.v0.models.Event")
-      }
-    }
-  }
-
-  private[this] def ensureSetup(
-    streamName: String
-  )(
-    implicit ec: ExecutionContext
-  ) {
-    setupStreams.contains(streamName) match {
-      case true => {
-        // No-op
-      }
-      case false => {
-        Await.result(
-          setup(streamName), Duration(5, "seconds")
-        ) match {
-          case Left(err) => {
-            sys.error(err)
-          }
-          case Right(_) => {
-            setupStreams += streamName
-          }
-        }
+  def consume(f: JsValue => _)(implicit ec: ExecutionContext) {
+    processMessages(f).recover {
+      case e: Throwable => {
+        sys.error(s"Error processing stream $name: $e")
       }
     }
   }
@@ -106,7 +86,6 @@ class KinesisQueue @javax.inject.Inject() (
    * Publish Helper Functions
    **/
   def insertMessage(
-    streamName: String,
     partitionKey: String,
     data: String
   )(implicit ec: ExecutionContext): Future[Unit] = {
@@ -116,14 +95,14 @@ class KinesisQueue @javax.inject.Inject() (
           new PutRecordRequest()
           .withData(ByteBuffer.wrap(data.getBytes))
           .withPartitionKey(partitionKey)
-          .withStreamName(streamName)
+          .withStreamName(name)
         )
       } catch {
         case e: ResourceNotFoundException => {
-          sys.error(s"Stream $streamName does not exist. Error Message: ${e.getMessage}")
+          sys.error(s"Stream $name does not exist. Error Message: ${e.getMessage}")
         }
         case e: Throwable => {
-          sys.error(s"Could not insert message to stream $streamName. Error Message: ${e.getMessage}")
+          sys.error(s"Could not insert message to stream $name. Error Message: ${e.getMessage}")
         }
       }
     }
@@ -133,12 +112,11 @@ class KinesisQueue @javax.inject.Inject() (
    * Consume Helper Functions
    **/
   def processMessages[T](
-    streamName: String,
     f: JsValue => _
   )(implicit ec: ExecutionContext): Future[Unit] = {
-    getShards(streamName).map{ shards =>
-      shards.map{ shardId =>
-        getShardIterator(streamName, shardId).map { shardIterator =>
+    getShards.map { shards =>
+      shards.map { shardId =>
+        getShardIterator(shardId).map { shardIterator =>
           processShard(shardIterator, f)
         }
       }
@@ -164,31 +142,28 @@ class KinesisQueue @javax.inject.Inject() (
    * Sets up the stream name in ec2, either an error or Unit
    **/
   private[this] def setup(
-    streamName: String
-  )(
     implicit ec: ExecutionContext
-  ): Future[Either[String, Unit]] = {
-    Future {
-      Try {
-        client.createStream(
-          new CreateStreamRequest()
-          .withStreamName(streamName)
+  ) {
+    Try {
+      client.createStream(
+        new CreateStreamRequest()
+          .withStreamName(name)
           .withShardCount(shardCreateCount)
-        )
-      } match {
-        case Success(_) => {
-          // Successfully setup stream
-          Right(())
-        }
-        case Failure(ex) => {
-          ex match {
-            case e: ResourceInUseException => {
-              // do nothing... already exists, ignore
-              Right(())
-            }
-            case e: Throwable => {
-              Left(s"Stream $streamName could not be created: ${e.getMessage}")
-            }
+      )
+    } match {
+      case Success(_) => {
+        // All good
+      }
+
+      case Failure(ex) => {
+        ex match {
+          case e: ResourceInUseException => {
+            // do nothing... already exists, ignore
+            Right(())
+          }
+
+          case e: Throwable => {
+            Left(s"Stream $name could not be created: ${e.getMessage}")
           }
         }
       }
@@ -221,19 +196,16 @@ class KinesisQueue @javax.inject.Inject() (
     }
   }
 
-  def getShards(
-    streamName: String
-  )(implicit ec: ExecutionContext): Future[Seq[String]] = {
+  def getShards(implicit ec: ExecutionContext): Future[Seq[String]] = {
     Future {
       client.describeStream(
         new DescribeStreamRequest()
-        .withStreamName(streamName)
+        .withStreamName(name)
       ).getStreamDescription.getShards.asScala.map(_.getShardId)
     }
   }
 
   def getShardIterator(
-    streamName: String,
     shardId: String
   )(implicit ec: ExecutionContext): Future[String] = {
     Future {
@@ -241,44 +213,38 @@ class KinesisQueue @javax.inject.Inject() (
         new GetShardIteratorRequest()
         .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
         .withShardId(shardId)
-        .withStreamName(streamName)
+        .withStreamName(name)
       ).getShardIterator
     }
   }
 
 }
 
-@javax.inject.Singleton
 class MockQueue extends Queue {
 
-  def publish[T: TypeTag](event: JsValue)(implicit ec: ExecutionContext) {
-    typeOf[T] match {
-      // example:
-      // scala> paramInfo(io.flow.common.v0.models.Name(Some("x"), Some("y")))
-      // io.flow.common.v0.models.type, class Name, List()
-      case TypeRef(packageName, className, args) => {
-        val streamName = s"${FlowEnvironment.Current}.${packageName}.${className}"
-        val partitionKey = streamName // TODO: Figure out what this should be based on available TypeRef vals
-        val data = Json.stringify(event)
-        Logger.info(s"insertMessage($streamName, $partitionKey, $data)")
-      }
-      case other => {
-        sys.error(s"Could not parse JsValue for type[$other] event: $event")
-      }
-    }
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T] = {
+    new MockStream[T]()
   }
 
-  def consume[T: TypeTag](f: JsValue => _)(implicit ec: ExecutionContext) {
-    typeOf[T] match {
-      // example:
-      // scala> paramInfo(io.flow.common.v0.models.Name(Some("x"), Some("y")))
-      // io.flow.common.v0.models.type, class Name, List()
-      case TypeRef(packageName, className, args) => {
-        val streamName = s"${FlowEnvironment.Current}.${packageName}.${className}"
-        Logger.info(s"Consuming from $streamName")
+}
+
+class MockStream[T: TypeTag] extends Stream[T] {
+
+  private var events = scala.collection.mutable.ListBuffer[JsValue]()
+
+  def publish(event: JsValue)(implicit ec: ExecutionContext) {
+    events += event
+  }
+
+  def consume(f: JsValue => _)(implicit ec: ExecutionContext) {
+    events.toList match {
+      case Nil => {
+        // no events
       }
-      case other => {
-        sys.error(s"Count not consume event of type[$other]")
+
+      case one :: rest => {
+        events.trimStart(1)
+        f(one)
       }
     }
   }
