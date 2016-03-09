@@ -1,4 +1,4 @@
-package io.flow.events
+package io.flow.event
 
 import play.api.{Environment, Configuration, Mode}
 import play.api.inject.Module

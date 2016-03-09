@@ -1,4 +1,4 @@
-package io.flow.events
+package io.flow.event
 
 import io.flow.play.util.FlowEnvironment
 
