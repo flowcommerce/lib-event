@@ -4,9 +4,9 @@ name := "lib-event"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.11.7"
+scalaVersion in ThisBuild := "2.11.8"
 
-crossScalaVersions := Seq("2.11.7")
+crossScalaVersions := Seq("2.11.8")
 
 lazy val root = project
   .in(file("."))
@@ -14,8 +14,8 @@ lazy val root = project
   .settings(
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.0.52",
-      "com.amazonaws" % "aws-java-sdk" % "1.10.58",
+      "io.flow" %% "lib-play" % "0.0.53",
+      "com.amazonaws" % "aws-java-sdk" % "1.10.59",
       "org.scalatest" %% "scalatest" % "2.2.6" % "test",
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
