@@ -18,12 +18,12 @@ import java.nio.ByteBuffer
 import collection.JavaConverters._
 
 trait Queue {
-  def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T]
+  def stream[T: TypeTag](implicit ec: ExecutionContext): Stream
 }
 
-trait Stream[T] {
+trait Stream {
   def publish(event: JsValue)(implicit ec: ExecutionContext)
-  def consume(f: JsValue => _)(implicit ec: ExecutionContext)
+  def consume(f: JsValue => Unit)(implicit ec: ExecutionContext)
 }
 
 class KinesisQueue @javax.inject.Inject() (
@@ -39,10 +39,10 @@ class KinesisQueue @javax.inject.Inject() (
 
   private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T] = typeOf[T].toString match {
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = typeOf[T].toString match {
     case ApidocClass(service, version, className) => {
-      val name = s"${FlowEnvironment.Current}.$service.v$version.$className.json"
-      KinesisStream[T](client, name)
+      val name = s"${FlowEnvironment.Current}.$service.$version.$className.json"
+      KinesisStream(client, name)
     }
 
     case "Any" => {
@@ -56,12 +56,12 @@ class KinesisQueue @javax.inject.Inject() (
 
 }
 
-case class KinesisStream[T](
+case class KinesisStream(
   client: AmazonKinesisClient,
   name: String
 ) (
   implicit ec: ExecutionContext
-) extends Stream[T] {
+) extends Stream {
 
   private[this] val recordLimit = 1000
   private[this] val shardCreateCount = 1
@@ -74,7 +74,7 @@ case class KinesisStream[T](
     insertMessage(partitionKey, data)
   }
 
-  def consume(f: JsValue => _)(implicit ec: ExecutionContext) {
+  def consume(f: JsValue => Unit)(implicit ec: ExecutionContext) {
     processMessages(f).recover {
       case e: Throwable => {
         sys.error(s"Error processing stream $name: $e")
@@ -112,7 +112,7 @@ case class KinesisStream[T](
    * Consume Helper Functions
    **/
   def processMessages[T](
-    f: JsValue => _
+    f: JsValue => Unit
   )(implicit ec: ExecutionContext): Future[Unit] = {
     getShards.map { shards =>
       shards.map { shardId =>
@@ -125,7 +125,7 @@ case class KinesisStream[T](
 
   def processShard(
     shardIterator: String,
-    f: JsValue => _
+    f: JsValue => Unit
   )(implicit ec: ExecutionContext): Future[Unit] = {
     getMessagesForShardIterator(shardIterator).map { result =>
       result.messages.foreach{ msg =>
@@ -222,13 +222,13 @@ case class KinesisStream[T](
 
 class MockQueue extends Queue {
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T] = {
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
     new MockStream[T]()
   }
 
 }
 
-class MockStream[T: TypeTag] extends Stream[T] {
+class MockStream[T: TypeTag] extends Stream {
 
   private var events = scala.collection.mutable.ListBuffer[JsValue]()
 
@@ -236,7 +236,7 @@ class MockStream[T: TypeTag] extends Stream[T] {
     events += event
   }
 
-  def consume(f: JsValue => _)(implicit ec: ExecutionContext) {
+  def consume(f: JsValue => Unit)(implicit ec: ExecutionContext) {
     events.toList match {
       case Nil => {
         // no events
