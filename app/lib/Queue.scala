@@ -41,7 +41,7 @@ class KinesisQueue @javax.inject.Inject() (
 
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream[T] = typeOf[T].toString match {
     case ApidocClass(service, version, className) => {
-      val name = s"${FlowEnvironment.Current}.$service.v$version.$className.json"
+      val name = s"${FlowEnvironment.Current}.$service.$version.$className.json"
       KinesisStream[T](client, name)
     }
 
