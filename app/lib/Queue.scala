@@ -40,7 +40,7 @@ class KinesisQueue @javax.inject.Inject() (
   private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
 
   def toSnakeCase(name: String): String = {
-    "[A-Z\\d]".r.replaceAllIn(name, {m => "_" + m.group(0).toLowerCase()})
+    name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2").replaceAll("([a-z\\d])([A-Z])", "$1_$2").toLowerCase
   }
 
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = typeOf[T].toString match {
