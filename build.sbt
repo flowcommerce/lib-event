@@ -1,6 +1,6 @@
 import play.PlayImport.PlayKeys._
 
-name := "lib-events"
+name := "lib-event"
 
 organization := "io.flow"
 
