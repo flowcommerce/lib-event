@@ -12,7 +12,7 @@ import play.api.Logger
 import scala.reflect.runtime.universe._
 import scala.concurrent.{Await,Future,ExecutionContext}
 import scala.concurrent.duration.Duration
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 import java.nio.ByteBuffer
 import collection.JavaConverters._
@@ -83,13 +83,13 @@ class KinesisQueue @javax.inject.Inject() (
         // No-op
       }
       case false => {
-        Await.ready(
+        Await.result(
           setup(streamName), Duration(5, "seconds")
-        ).value.get match {
-          case Failure(err) => {
-            sys.error(s"Error setting up stream[$streamName]: $err")
+        ) match {
+          case Left(err) => {
+            sys.error(err)
           }
-          case Success(_) => {
+          case Right(_) => {
             setupStreams += streamName
           }
         }
@@ -155,25 +155,36 @@ class KinesisQueue @javax.inject.Inject() (
     }
   }
 
-  def setup(
+  /**
+   * Sets up the stream name in ec2, either an error or Unit
+   **/
+  private[this] def setup(
     streamName: String
   )(
     implicit ec: ExecutionContext
-  ): Future[Unit] = {
+  ): Future[Either[String, Unit]] = {
     Future {
-      try {
+      Try {
         client.createStream(
           new CreateStreamRequest()
           .withStreamName(streamName)
           .withShardCount(shardCreateCount)
         )
-        setupStreams += streamName
-      } catch {
-        case e: ResourceInUseException => {
-          // do nothing... already exists, ignore
+      } match {
+        case Success(_) => {
+          // Successfully setup stream
+          Right(())
         }
-        case e: Throwable => {
-          Logger.error(s"Stream $streamName could not be created. Error Message: ${e.getMessage}")
+        case Failure(ex) => {
+          ex match {
+            case e: ResourceInUseException => {
+              // do nothing... already exists, ignore
+              Right(())
+            }
+            case e: Throwable => {
+              Left(s"Stream $streamName could not be created: ${e.getMessage}")
+            }
+          }
         }
       }
     }
