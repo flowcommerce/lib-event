@@ -19,7 +19,7 @@ import collection.JavaConverters._
 
 trait Queue {
   def publish[T: TypeTag](event: JsValue)(implicit ec: ExecutionContext)
-  def consume[T: TypeTag](f: JsValue => T)(implicit ec: ExecutionContext)
+  def consume[T: TypeTag](f: JsValue => _)(implicit ec: ExecutionContext)
 }
 
 @javax.inject.Singleton
@@ -55,7 +55,7 @@ class KinesisQueue @javax.inject.Inject() (
     }
   }
 
-  def consume[T: TypeTag](f: JsValue => T)(implicit ec: ExecutionContext) {
+  def consume[T: TypeTag](f: JsValue => _)(implicit ec: ExecutionContext) {
     typeOf[T].toString match {
       case ApidocClass(service, majorVersion, className) => {
         val streamName = getStreamName(service, majorVersion, className.toLowerCase)
@@ -63,12 +63,17 @@ class KinesisQueue @javax.inject.Inject() (
 
         processMessages(streamName, f).recover {
           case e: Throwable => {
-            Logger.error(s"Error processing stream $streamName")
+            sys.error(s"Error processing stream $streamName: $e")
           }
         }
       }
+
+      case "Any" => {
+        sys.error(s"In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
+      }
+
       case other => {
-        sys.error(s"Could not identify stream name of type[$other]. Expected something like io.flow.user.v0.models.Event")
+        sys.error(s"Could not parse stream name of type[$other]. Expected something like io.flow.user.v0.models.Event")
       }
     }
   }
@@ -115,10 +120,10 @@ class KinesisQueue @javax.inject.Inject() (
         )
       } catch {
         case e: ResourceNotFoundException => {
-          Logger.error(s"Stream $streamName does not exist. Error Message: ${e.getMessage}")
+          sys.error(s"Stream $streamName does not exist. Error Message: ${e.getMessage}")
         }
         case e: Throwable => {
-          Logger.error(s"Could not insert message to stream $streamName. Error Message: ${e.getMessage}")
+          sys.error(s"Could not insert message to stream $streamName. Error Message: ${e.getMessage}")
         }
       }
     }
@@ -129,7 +134,7 @@ class KinesisQueue @javax.inject.Inject() (
    **/
   def processMessages[T](
     streamName: String,
-    f: JsValue => T
+    f: JsValue => _
   )(implicit ec: ExecutionContext): Future[Unit] = {
     getShards(streamName).map{ shards =>
       shards.map{ shardId =>
@@ -140,9 +145,9 @@ class KinesisQueue @javax.inject.Inject() (
     }
   }
 
-  def processShard[T](
+  def processShard(
     shardIterator: String,
-    f: JsValue => T
+    f: JsValue => _
   )(implicit ec: ExecutionContext): Future[Unit] = {
     getMessagesForShardIterator(shardIterator).map { result =>
       result.messages.foreach{ msg =>
@@ -257,13 +262,13 @@ class MockQueue extends Queue {
         val data = Json.stringify(event)
         Logger.info(s"insertMessage($streamName, $partitionKey, $data)")
       }
-      case _ => {
-        Logger.error(s"Could not parse JsValue event: $event")
+      case other => {
+        sys.error(s"Could not parse JsValue for type[$other] event: $event")
       }
     }
   }
 
-  def consume[T: TypeTag](f: JsValue => T)(implicit ec: ExecutionContext) {
+  def consume[T: TypeTag](f: JsValue => _)(implicit ec: ExecutionContext) {
     typeOf[T] match {
       // example:
       // scala> paramInfo(io.flow.common.v0.models.Name(Some("x"), Some("y")))
@@ -272,8 +277,8 @@ class MockQueue extends Queue {
         val streamName = s"${FlowEnvironment.Current}.${packageName}.${className}"
         Logger.info(s"Consuming from $streamName")
       }
-      case _ => {
-        Logger.error(s"Count not consume TypeTag")
+      case other => {
+        sys.error(s"Count not consume event of type[$other]")
       }
     }
   }
