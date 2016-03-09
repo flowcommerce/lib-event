@@ -35,7 +35,7 @@ class KinesisQueue @javax.inject.Inject() (
   private[this] val recordLimit = 1000
   private[this] val shardCreateCount = 1
   private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
-  private[this] val setupStreams = scala.collection.mutable.ListBuffer.empty[String]
+  private[this] val setupStreams = scala.collection.mutable.Set[String]()
 
   def getStreamName(service: String, version: String, klass: String): String = {
     s"${FlowEnvironment.Current}.$service.$version.$klass.json"
@@ -59,25 +59,40 @@ class KinesisQueue @javax.inject.Inject() (
     typeOf[T].toString match {
       case ApidocClass(service, majorVersion, className) => {
         val streamName = getStreamName(service, majorVersion, className.toLowerCase)
+        ensureSetup(streamName)
 
-        setupStreams.contains(streamName) match {
-          case false => {
-            Await.ready(setup(streamName), Duration(5, "seconds")).value.get match {
-              case Failure(err) => {
-                Logger.error("An error occurred while processing messages: ${e.getMessage}")
-              }
-              case Success(_) => {
-                processMessages(streamName, f)
-              }
-            }
-          }
-          case true => {
-            processMessages(streamName, f)
+        processMessages(streamName, f).recover {
+          case e: Throwable => {
+            Logger.error(s"Error processing stream $streamName")
           }
         }
       }
-      case _ => {
-        sys.error("Could not parse type")
+      case other => {
+        sys.error(s"Could not identify stream name of type[$other]. Expected something like io.flow.user.v0.models.Event")
+      }
+    }
+  }
+
+  private[this] def ensureSetup(
+    streamName: String
+  )(
+    implicit ec: ExecutionContext
+  ) {
+    setupStreams.contains(streamName) match {
+      case true => {
+        // No-op
+      }
+      case false => {
+        Await.ready(
+          setup(streamName), Duration(5, "seconds")
+        ).value.get match {
+          case Failure(err) => {
+            sys.error(s"Error setting up stream[$streamName]: $err")
+          }
+          case Success(_) => {
+            setupStreams += streamName
+          }
+        }
       }
     }
   }
