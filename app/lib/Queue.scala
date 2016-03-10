@@ -219,13 +219,18 @@ case class KinesisStream(
   )(implicit ec: ExecutionContext): Future[String] = {
     Future {
       val baseRequest = new GetShardIteratorRequest()
-        .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
         .withShardId(shardId)
         .withStreamName(name)
 
       val request = shardSequenceNumberMap.contains(shardId) match {
-        case true => baseRequest.withStartingSequenceNumber(shardSequenceNumberMap(shardId))
-        case false => baseRequest
+        case true => {
+          baseRequest
+          .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+          .withShardIteratorType(ShardIteratorType.AFTER_SEQUENCE_NUMBER)
+        }
+        case false => {
+          baseRequest.withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+        }
       }
 
       client.getShardIterator(request).getShardIterator
