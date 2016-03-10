@@ -70,6 +70,7 @@ case class KinesisStream(
 
   private[this] val recordLimit = 1000
   private[this] val shardCreateCount = 1
+  private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String,String]
 
   setup
 
@@ -122,7 +123,7 @@ case class KinesisStream(
     getShards.map { shards =>
       shards.map { shardId =>
         getShardIterator(shardId).map { shardIterator =>
-          processShard(shardIterator, f)
+          processShard(shardIterator, shardId, f)
         }
       }
     }
@@ -130,15 +131,16 @@ case class KinesisStream(
 
   def processShard(
     shardIterator: String,
+    shardId: String,
     f: JsValue => Unit
   )(implicit ec: ExecutionContext): Future[Unit] = {
-    getMessagesForShardIterator(shardIterator).map { result =>
+    getMessagesForShardIterator(shardIterator, shardId).map { result =>
       result.messages.foreach{ msg =>
         f(Json.parse(msg))
       }
 
       result.nextShardIterator.map{nextShardIterator =>
-        processShard(nextShardIterator, f)
+        processShard(nextShardIterator, shardId, f)
       }
     }
   }
@@ -176,7 +178,8 @@ case class KinesisStream(
   }
 
   def getMessagesForShardIterator(
-    shardIterator: String
+    shardIterator: String,
+    shardId: String
   )(implicit ec: ExecutionContext): Future[KinesisShardMessageSummary] = {
     Future {
       val request = new GetRecordsRequest()
@@ -186,6 +189,7 @@ case class KinesisStream(
       val records = result.getRecords
 
       val messages = records.asScala.map{record =>
+        shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
         val buffer = record.getData
         val bytes = Array.fill[Byte](buffer.remaining)(0)
         buffer.get(bytes)
@@ -214,12 +218,17 @@ case class KinesisStream(
     shardId: String
   )(implicit ec: ExecutionContext): Future[String] = {
     Future {
-      client.getShardIterator(
-        new GetShardIteratorRequest()
+      val baseRequest = new GetShardIteratorRequest()
         .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
         .withShardId(shardId)
         .withStreamName(name)
-      ).getShardIterator
+
+      val request = shardSequenceNumberMap.contains(shardId) match {
+        case true => baseRequest.withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+        case false => baseRequest
+      }
+
+      client.getShardIterator(request).getShardIterator
     }
   }
 
