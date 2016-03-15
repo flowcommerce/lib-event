@@ -222,6 +222,9 @@ case class KinesisStream(
         .withShardId(shardId)
         .withStreamName(name)
 
+      // for sanity
+      Logger.info(s"Stream: $name, Shard Sequence Number Map: $shardSequenceNumberMap")
+
       val request = shardSequenceNumberMap.contains(shardId) match {
         case true => {
           baseRequest
