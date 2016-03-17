@@ -37,7 +37,7 @@ class KinesisQueue @javax.inject.Inject() (
 
   private[this] val client = new AmazonKinesisClient(credentials)
 
-  private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
+  val ApidocClass = "^io\\.flow\\.([a-z]+)(\\.([a-z]+))*\\.(v\\d+)\\.models\\.(\\w+)$".r
 
   def toSnakeCase(name: String): String = {
     name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2").replaceAll("([a-z\\d])([A-Z])", "$1_$2").toLowerCase
