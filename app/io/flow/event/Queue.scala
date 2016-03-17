@@ -5,7 +5,6 @@ import io.flow.play.util.FlowEnvironment
 import com.amazonaws.auth.{AWSCredentials, BasicAWSCredentials}
 import com.amazonaws.services.kinesis.AmazonKinesisClient
 import com.amazonaws.services.kinesis.model._
-import lib.RegexHelpers
 
 import play.api.libs.json.{JsValue,Json}
 import play.api.Logger
@@ -38,24 +37,21 @@ class KinesisQueue @javax.inject.Inject() (
 
   private[this] val client = new AmazonKinesisClient(credentials)
 
-  def toSnakeCase(name: String): String = {
-    name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2").replaceAll("([a-z\\d])([A-Z])", "$1_$2").toLowerCase
-  }
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+    val name = typeOf[T].toString
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = typeOf[T].toString match {
-    case RegexHelpers.ApidocClass(service, placeholder, version, className) => {
-      val snakeClassName = toSnakeCase(className)
-      val name = s"${FlowEnvironment.Current}.$service.$version.$snakeClassName.json"
-      KinesisStream(client, name)
+    val streamName = StreamNames(FlowEnvironment.Current).json(name).getOrElse {
+      name match {
+        case "Any" => {
+          sys.error(s"In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
+        }
+        case _ => {
+          sys.error(s"Could not parse stream name of type[$name]. Expected something like io.flow.user.v0.models.Event")
+        }
+      }
     }
 
-    case "Any" => {
-      sys.error(s"In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
-    }
-
-    case other => {
-      sys.error(s"Could not parse stream name of type[$other]. Expected something like io.flow.user.v0.models.Event")
-    }
+    KinesisStream(client, streamName)
   }
 
 }
