@@ -5,6 +5,7 @@ import io.flow.play.util.FlowEnvironment
 import com.amazonaws.auth.{AWSCredentials, BasicAWSCredentials}
 import com.amazonaws.services.kinesis.AmazonKinesisClient
 import com.amazonaws.services.kinesis.model._
+import lib.RegexHelpers
 
 import play.api.libs.json.{JsValue,Json}
 import play.api.Logger
@@ -37,14 +38,12 @@ class KinesisQueue @javax.inject.Inject() (
 
   private[this] val client = new AmazonKinesisClient(credentials)
 
-  private[this] val ApidocClass = "^io.flow.([a-z]+).(v\\d+).models.(\\w+)$".r
-
   def toSnakeCase(name: String): String = {
     name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2").replaceAll("([a-z\\d])([A-Z])", "$1_$2").toLowerCase
   }
 
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = typeOf[T].toString match {
-    case ApidocClass(service, version, className) => {
+    case RegexHelpers.ApidocClass(service, version, className) => {
       val snakeClassName = toSnakeCase(className)
       val name = s"${FlowEnvironment.Current}.$service.$version.$snakeClassName.json"
       KinesisStream(client, name)
