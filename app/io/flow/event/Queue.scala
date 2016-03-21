@@ -1,19 +1,15 @@
 package io.flow.event
 
-import io.flow.play.util.FlowEnvironment
 
-import com.amazonaws.auth.{AWSCredentials, BasicAWSCredentials}
+import io.flow.play.util.FlowEnvironment
+import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.kinesis.AmazonKinesisClient
 import com.amazonaws.services.kinesis.model._
-
 import play.api.libs.json.{JsValue,Json}
 import play.api.Logger
-
 import scala.reflect.runtime.universe._
-import scala.concurrent.{Await,Future,ExecutionContext}
-import scala.concurrent.duration.Duration
+import scala.concurrent.{Future,ExecutionContext}
 import scala.util.{Failure, Success, Try}
-
 import java.nio.ByteBuffer
 import collection.JavaConverters._
 
@@ -240,13 +236,19 @@ case class KinesisStream(
 
 class MockQueue extends Queue {
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
-    new MockStream[T]()
-  }
+  var mockStreams: scala.collection.mutable.Map[String, MockStream] = scala.collection.mutable.Map[String, MockStream]()
 
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+    val name = typeOf[T].toString
+
+    if (!mockStreams.contains(name))
+      mockStreams.put(name, new MockStream())
+
+    mockStreams.get(name).get
+  }
 }
 
-class MockStream[T: TypeTag] extends Stream {
+class MockStream extends Stream {
 
   private var events = scala.collection.mutable.ListBuffer[JsValue]()
 
