@@ -234,6 +234,7 @@ case class KinesisStream(
 
 }
 
+@javax.inject.Singleton
 class MockQueue extends Queue {
 
   var mockStreams: scala.collection.mutable.Map[String, MockStream] = scala.collection.mutable.Map[String, MockStream]()
@@ -248,6 +249,7 @@ class MockQueue extends Queue {
   }
 }
 
+@javax.inject.Singleton
 class MockStream extends Stream {
 
   private var events = scala.collection.mutable.ListBuffer[JsValue]()
