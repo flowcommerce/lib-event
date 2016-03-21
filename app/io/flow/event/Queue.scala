@@ -181,6 +181,7 @@ case class KinesisStream(
         .withLimit(recordLimit)
         .withShardIterator(shardIterator)
       val result = client.getRecords(request)
+      val millisBehindLatest = result.getMillisBehindLatest
       val records = result.getRecords
 
       val messages = records.asScala.map{record =>
@@ -191,9 +192,9 @@ case class KinesisStream(
         new String(bytes)
       }
 
-      val nextShardIterator = (records.size == recordLimit) match {
-        case true => Some(result.getNextShardIterator)
-        case false => None
+      val nextShardIterator = (millisBehindLatest == 0) match {
+        case true => None
+        case false => Some(result.getNextShardIterator)
       }
 
       KinesisShardMessageSummary(messages, nextShardIterator)
