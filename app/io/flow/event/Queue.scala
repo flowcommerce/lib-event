@@ -51,7 +51,7 @@ class KinesisQueue @javax.inject.Inject() (
     if (!kinesisStreams.contains(streamName))
       kinesisStreams.put(streamName, KinesisStream(client, streamName))
 
-    kinesisStreams.get(streamName).get
+    kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName))
   }
 
 }
