@@ -32,6 +32,7 @@ class KinesisQueue @javax.inject.Inject() (
   )
 
   private[this] val client = new AmazonKinesisClient(credentials)
+  var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
@@ -47,7 +48,10 @@ class KinesisQueue @javax.inject.Inject() (
       }
     }
 
-    KinesisStream(client, streamName)
+    if (!kinesisStreams.contains(streamName))
+      kinesisStreams.put(streamName, KinesisStream(client, streamName))
+
+    kinesisStreams.get(streamName).get
   }
 
 }
