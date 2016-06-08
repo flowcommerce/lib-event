@@ -14,8 +14,8 @@ lazy val root = project
   .settings(
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.1.25",
-      "com.amazonaws" % "aws-java-sdk-kinesis" % "1.11.6",
+      "io.flow" %% "lib-play" % "0.1.26",
+      "com.amazonaws" % "aws-java-sdk-kinesis" % "1.11.5",
       "org.scalatest" %% "scalatest" % "2.2.6" % "test",
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
@@ -38,4 +38,4 @@ publishTo := {
     Some("Artifactory Realm" at s"$host/libs-release-local")
   }
 }
-version := "0.0.57"
+version := "0.0.52"
