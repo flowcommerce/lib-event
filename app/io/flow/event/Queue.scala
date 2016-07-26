@@ -13,8 +13,13 @@ import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
 import collection.JavaConverters._
 
+case class ShardData(
+  shardId: String,
+  shardSequenceNumber: String
+)
+
 trait Queue {
-  def stream[T: TypeTag](implicit ec: ExecutionContext): Stream
+  def stream[T: TypeTag](shardData: Option[ShardData] = None)(implicit ec: ExecutionContext): Stream
 }
 
 trait Stream {
@@ -34,7 +39,7 @@ class KinesisQueue @javax.inject.Inject() (
   private[this] val client = new AmazonKinesisClient(credentials)
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+  override def stream[T: TypeTag](shardData: Option[ShardData] = None)(implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
 
     val streamName = StreamNames(FlowEnvironment.Current).json(name).getOrElse {
@@ -49,16 +54,24 @@ class KinesisQueue @javax.inject.Inject() (
     }
 
     if (!kinesisStreams.contains(streamName))
-      kinesisStreams.put(streamName, KinesisStream(client, streamName))
+      kinesisStreams.put(
+        streamName,
+        KinesisStream(
+          client = client,
+          name = streamName,
+          shardData = shardData
+        )
+      )
 
-    kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName))
+    kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName, shardData))
   }
 
 }
 
 case class KinesisStream(
   client: AmazonKinesisClient,
-  name: String
+  name: String,
+  shardData: Option[ShardData]
 ) (
   implicit ec: ExecutionContext
 ) extends Stream {
@@ -66,6 +79,8 @@ case class KinesisStream(
   private[this] val recordLimit = 1000
   private[this] val shardCreateCount = 1
   private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String,String]
+
+  shardData.map { sd => shardSequenceNumberMap += (sd.shardId -> sd.shardSequenceNumber) }
 
   setup
 
@@ -243,7 +258,7 @@ class MockQueue extends Queue {
 
   var mockStreams: scala.collection.mutable.Map[String, MockStream] = scala.collection.mutable.Map[String, MockStream]()
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+  override def stream[T: TypeTag](shardData: Option[ShardData] = None)(implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
 
     if (!mockStreams.contains(name))
