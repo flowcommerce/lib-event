@@ -5,6 +5,10 @@ import io.flow.play.util.FlowEnvironment
 case class StreamNames(env: FlowEnvironment) {
 
   private[this] val ApidocClass = "^io\\.flow\\.([a-z]+(\\.[a-z]+)*)\\.(v\\d+)\\.models\\.(\\w+)$".r
+  private[this] val streamEnv = env match {
+    case FlowEnvironment.Production => "production"
+    case FlowEnvironment.Development | FlowEnvironment.Workstation => "development_workstation"
+  }
 
   /**
     * Turns a full class name into the name of a kinesis stream
@@ -13,7 +17,7 @@ case class StreamNames(env: FlowEnvironment) {
     className match {
       case ApidocClass(service, placeholder, version, className) => {
         val snakeClassName = toSnakeCase(className)
-        Some(s"$env.$service.$version.$snakeClassName.json")
+        Some(s"$streamEnv.$service.$version.$snakeClassName.json")
       }
 
       case _ => {
