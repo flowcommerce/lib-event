@@ -1,16 +1,18 @@
 package io.flow.event
 
 
-import io.flow.play.util.FlowEnvironment
+import io.flow.play.util.{FlowEnvironment, Random}
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.services.kinesis.AmazonKinesisClient
 import com.amazonaws.services.kinesis.model._
-import play.api.libs.json.{JsValue,Json}
+import play.api.libs.json.{JsValue, Json}
 import play.api.Logger
+
 import scala.reflect.runtime.universe._
-import scala.concurrent.{Future,ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
+
 import collection.JavaConverters._
 
 trait Queue {
@@ -76,7 +78,7 @@ case class KinesisStream(
   setup
 
   def publish(event: JsValue) {
-    val partitionKey = name // TODO: Figure out what this should be based on available TypeRef vals
+    val partitionKey = Random().alphaNumeric(30)
     val data = Json.stringify(event)
     insertMessage(partitionKey, data)
   }
