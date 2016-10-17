@@ -31,6 +31,9 @@ class KinesisQueue @javax.inject.Inject() (
     config.requiredString("aws.secret.key")
   )
 
+  // Get shard count from config - default to 1 if not available, for backward compatibility with existing streams
+  private[this] val shardCreateCount = config.optionalInt("aws.kinesis.shard.count").getOrElse(1)
+
   private[this] val client = new AmazonKinesisClient(credentials)
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
@@ -49,22 +52,22 @@ class KinesisQueue @javax.inject.Inject() (
     }
 
     if (!kinesisStreams.contains(streamName))
-      kinesisStreams.put(streamName, KinesisStream(client, streamName))
+      kinesisStreams.put(streamName, KinesisStream(client, streamName, shardCreateCount))
 
-    kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName))
+    kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName, shardCreateCount))
   }
 
 }
 
 case class KinesisStream(
   client: AmazonKinesisClient,
-  name: String
+  name: String,
+  shardCreateCount: Int = 1
 ) (
   implicit ec: ExecutionContext
 ) extends Stream {
 
   private[this] val recordLimit = 1000
-  private[this] val shardCreateCount = 1
   private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String,String]
 
   setup
