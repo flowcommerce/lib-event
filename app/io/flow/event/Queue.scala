@@ -18,7 +18,7 @@ trait Queue {
 }
 
 trait Stream {
-  def publish(event: JsValue)(implicit ec: ExecutionContext)
+  def publish(event: JsValue)
   def consume(f: JsValue => Unit)(implicit ec: ExecutionContext)
 }
 
@@ -40,21 +40,24 @@ class KinesisQueue @javax.inject.Inject() (
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
 
-    val streamName = StreamNames(FlowEnvironment.Current).json(name).getOrElse {
-      name match {
-        case "Any" => {
-          sys.error(s"In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
-        }
-        case _ => {
-          sys.error(s"Could not parse stream name of type[$name]. Expected something like io.flow.user.v0.models.Event")
+    StreamNames(FlowEnvironment.Current).json(name) match {
+      case None => {
+        name match {
+          case "Any" => {
+            sys.error(s"FlowKinesisError Stream[$name] In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.models.Event")
+          }
+          case _ => {
+            sys.error(s"FlowKinesisError Stream[$name] Could not parse stream name. Expected something like io.flow.user.v0.models.Event")
+          }
         }
       }
+      case Some(streamName) => {
+        if (!kinesisStreams.contains(streamName))
+          kinesisStreams.put(streamName, KinesisStream(client, streamName, numberShards))
+
+        kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName, numberShards))
+      }
     }
-
-    if (!kinesisStreams.contains(streamName))
-      kinesisStreams.put(streamName, KinesisStream(client, streamName, numberShards))
-
-    kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName, numberShards))
   }
 
 }
@@ -72,7 +75,7 @@ case class KinesisStream(
 
   setup
 
-  def publish(event: JsValue)(implicit ec: ExecutionContext) {
+  def publish(event: JsValue) {
     val partitionKey = name // TODO: Figure out what this should be based on available TypeRef vals
     val data = Json.stringify(event)
     insertMessage(partitionKey, data)
@@ -81,7 +84,7 @@ case class KinesisStream(
   def consume(f: JsValue => Unit)(implicit ec: ExecutionContext) {
     processMessages(f).recover {
       case e: Throwable => {
-        sys.error(s"Error processing stream $name: $e")
+        Logger.error(s"FlowKinesisError Stream[$name] Error processing: $e")
       }
     }
   }
@@ -89,25 +92,20 @@ case class KinesisStream(
   /**
    * Publish Helper Functions
    **/
-  def insertMessage(
-    partitionKey: String,
-    data: String
-  )(implicit ec: ExecutionContext): Future[Unit] = {
-    Future {
-      try {
-        client.putRecord(
-          new PutRecordRequest()
+  def insertMessage(partitionKey: String, data: String) {
+    try {
+      client.putRecord(
+        new PutRecordRequest()
           .withData(ByteBuffer.wrap(data.getBytes))
           .withPartitionKey(partitionKey)
           .withStreamName(name)
-        )
-      } catch {
-        case e: ResourceNotFoundException => {
-          sys.error(s"Stream $name does not exist. Error Message: ${e.getMessage}")
-        }
-        case e: Throwable => {
-          sys.error(s"Could not insert message to stream $name. Error Message: ${e.getMessage}")
-        }
+      )
+    } catch {
+      case e: ResourceNotFoundException => {
+        Logger.error(s"FlowKinesisError Stream[$name] does not exist. Error Message: ${e.getMessage}")
+      }
+      case e: Throwable => {
+        Logger.error(s"FlowKinesisError Stream[$name] Could not insert message. Error Message: ${e.getMessage}")
       }
     }
   }
@@ -258,7 +256,7 @@ class MockStream extends Stream {
 
   private var events = scala.collection.mutable.ListBuffer[JsValue]()
 
-  def publish(event: JsValue)(implicit ec: ExecutionContext) {
+  def publish(event: JsValue) {
     events += event
   }
 
