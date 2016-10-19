@@ -192,7 +192,7 @@ case class KinesisStream(
         val buffer = record.getData
         val bytes = Array.fill[Byte](buffer.remaining)(0)
         buffer.get(bytes)
-        new String(bytes)
+        new String(bytes, "UTF-8")
       }
 
       val nextShardIterator = (millisBehindLatest == 0) match {
