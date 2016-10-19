@@ -98,7 +98,7 @@ case class KinesisStream(
     try {
       client.putRecord(
         new PutRecordRequest()
-          .withData(ByteBuffer.wrap(data.getBytes))
+          .withData(ByteBuffer.wrap(data.getBytes("UTF-8")))
           .withPartitionKey(partitionKey)
           .withStreamName(name)
       )
