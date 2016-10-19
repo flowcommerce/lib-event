@@ -134,7 +134,7 @@ case class KinesisStream(
   )(implicit ec: ExecutionContext): Future[Unit] = {
     getMessagesForShardIterator(shardIterator, shardId).map { result =>
       result.messages.foreach{ msg =>
-        f(Json.parse(msg))
+        f(Json.parse(msg.getBytes("UTF-8")))
       }
 
       result.nextShardIterator.map{nextShardIterator =>
