@@ -88,6 +88,8 @@ case class KinesisStream(
   private[this] val recordLimit = 750
   private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String,String]
 
+  private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String,Seq[String]]
+
   setup
 
   def publish(event: JsValue) {
@@ -230,12 +232,26 @@ case class KinesisStream(
     }
   }
 
+  /**
+    * Since there is an AWS account limit allowing only 5 concurrent requests to describe streams,
+    * cache the streamName -> shardId.
+    *
+    * On service startup, the API will only be called at most once per stream name
+    */
   def getShards(implicit ec: ExecutionContext): Future[Seq[String]] = {
     Future {
-      client.describeStream(
-        new DescribeStreamRequest()
-        .withStreamName(name)
-      ).getStreamDescription.getShards.asScala.map(_.getShardId)
+      if (!streamNameShardIds.contains(name)) {
+        val shardIds = client.describeStream(
+          new DescribeStreamRequest()
+            .withStreamName(name)
+        ).getStreamDescription.getShards.asScala.map(_.getShardId)
+
+        streamNameShardIds += (name -> shardIds)
+
+        shardIds
+      } else {
+        streamNameShardIds(name)
+      }
     }
   }
 
