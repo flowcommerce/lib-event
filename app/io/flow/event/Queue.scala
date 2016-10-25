@@ -72,7 +72,21 @@ case class KinesisStream(
   implicit ec: ExecutionContext
 ) extends Stream {
 
-  private[this] val recordLimit = 1000
+  /**
+    * "...up to a maximum total data read rate of 2 MB per second.
+    * Note that each read (GetRecords call) gets a batch of records.
+    * The size of the data returned by GetRecords varies depending on the utilization of the shard.
+    * The maximum size of data that GetRecords can return is 10 MB.
+    * If a call returns that limit, subsequent calls made within the next 5 seconds throw ProvisionedThroughputExceededException."
+    *
+    * Let's try to grab the optimal amount -
+    * The below recordLimit is a general guess given one of Flow's larger messages (~2300 bytes).
+    * 2300 * 750 = 1.72 MB
+    *
+    * Documentation:
+    * https://docs.aws.amazon.com/streams/latest/dev/troubleshooting-consumers.html?shortFooter=true
+    */
+  private[this] val recordLimit = 750
   private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String,String]
 
   setup
@@ -138,6 +152,19 @@ case class KinesisStream(
       }
 
       result.nextShardIterator.map{nextShardIterator =>
+
+        /**
+          * For best results, sleep for at least one second (1000 milliseconds) between calls to getRecords to avoid exceeding the limit on getRecords frequency.
+          *
+          * Documentation:
+          * https://docs.aws.amazon.com/streams/latest/dev/developing-consumers-with-sdk.html?shortFooter=true#kinesis-using-sdk-java-get-data-getrecords
+          */
+        try {
+          Thread.sleep(1000)
+        } catch {
+          case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
+        }
+
         processShard(nextShardIterator, shardId, f)
       }
     }
