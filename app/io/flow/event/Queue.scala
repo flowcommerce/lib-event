@@ -79,7 +79,7 @@ case class KinesisStream(
     * The maximum size of data that GetRecords can return is 10 MB.
     * If a call returns that limit, subsequent calls made within the next 5 seconds throw ProvisionedThroughputExceededException."
     *
-    * Let's try to graab the optimal amount -
+    * Let's try to grab the optimal amount -
     * The below recordLimit is a general guess given one of Flow's larger messages (~2300 bytes).
     * 2300 * 750 = 1.72 MB
     *
