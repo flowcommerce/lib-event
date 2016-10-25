@@ -33,9 +33,8 @@ class KinesisQueue @javax.inject.Inject() (
     config.requiredString("aws.secret.key")
   )
 
-  // Get shard count from config - default to 1 if not available, for backward compatibility with existing streams
-  private[this] val numberShards = config.optionalPositiveInt("aws.kinesis.shard.count").getOrElse(1)
-
+  // Explicitly create streams with 4 shards to allow 20 concurrent connections
+  private[this] val numberShards = 4
   private[this] val client = new AmazonKinesisClient(credentials)
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
