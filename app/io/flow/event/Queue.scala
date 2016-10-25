@@ -234,7 +234,7 @@ case class KinesisStream(
 
   /**
     * Since there is an AWS account limit allowing only 5 concurrent requests to describe streams,
-    * cache the streamName -> shardId.
+    * cache the streamName -> shardIds.
     *
     * On service startup, the API will only be called at most once per stream name
     */
