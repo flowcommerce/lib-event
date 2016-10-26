@@ -13,6 +13,10 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
 
+import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
+import com.amazonaws.services.cloudwatch.model.{ResourceNotFoundException => _, _}
+import org.joda.time.DateTime
+
 import collection.JavaConverters._
 
 trait Queue {
@@ -35,7 +39,9 @@ class KinesisQueue @javax.inject.Inject() (
 
   // Explicitly create streams with 4 shards to allow 20 concurrent connections
   private[this] val numberShards = 4
-  private[this] val client = new AmazonKinesisClient(credentials)
+  private[this] val kinesisClient = new AmazonKinesisClient(credentials)
+  private[this] val cloudWatchClient = new AmazonCloudWatchClient(credentials)
+
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
@@ -54,9 +60,9 @@ class KinesisQueue @javax.inject.Inject() (
       }
       case Some(streamName) => {
         if (!kinesisStreams.contains(streamName))
-          kinesisStreams.put(streamName, KinesisStream(client, streamName, numberShards))
+          kinesisStreams.put(streamName, KinesisStream(cloudWatchClient, kinesisClient, streamName, numberShards))
 
-        kinesisStreams.get(streamName).getOrElse(KinesisStream(client, streamName, numberShards))
+        kinesisStreams.get(streamName).getOrElse(KinesisStream(cloudWatchClient, kinesisClient, streamName, numberShards))
       }
     }
   }
@@ -64,7 +70,8 @@ class KinesisQueue @javax.inject.Inject() (
 }
 
 case class KinesisStream(
-  client: AmazonKinesisClient,
+  cloudWatchClient: AmazonCloudWatchClient,
+  kinesisClient: AmazonKinesisClient,
   name: String,
   numberShards: Int = 1
 ) (
@@ -111,7 +118,7 @@ case class KinesisStream(
    **/
   def insertMessage(partitionKey: String, data: String) {
     try {
-      client.putRecord(
+      kinesisClient.putRecord(
         new PutRecordRequest()
           .withData(ByteBuffer.wrap(data.getBytes("UTF-8")))
           .withPartitionKey(partitionKey)
@@ -178,7 +185,7 @@ case class KinesisStream(
     implicit ec: ExecutionContext
   ) {
     Try {
-      client.createStream(
+      kinesisClient.createStream(
         new CreateStreamRequest()
           .withStreamName(name)
           .withShardCount(numberShards)
@@ -211,11 +218,19 @@ case class KinesisStream(
       val request = new GetRecordsRequest()
         .withLimit(recordLimit)
         .withShardIterator(shardIterator)
-      val result = client.getRecords(request)
+      val result = kinesisClient.getRecords(request)
       val millisBehindLatest = result.getMillisBehindLatest
       val records = result.getRecords
 
       val messages = records.asScala.map{record =>
+
+        /**
+          * For each unique stream/shard, put a metric to AWS CloudWatch indicating the stream latency
+          * Stream Latency = Current Time - Record Approximate Arrival Timestamp (approx. arrival in the stream)
+          *
+          */
+        putStreamLatencyMetric(name, shardId, record.getApproximateArrivalTimestamp.getTime)
+
         shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
         val buffer = record.getData
         val bytes = Array.fill[Byte](buffer.remaining)(0)
@@ -241,7 +256,7 @@ case class KinesisStream(
   def getShards(implicit ec: ExecutionContext): Future[Seq[String]] = {
     Future {
       if (!streamNameShardIds.contains(name)) {
-        val shardIds = client.describeStream(
+        val shardIds = kinesisClient.describeStream(
           new DescribeStreamRequest()
             .withStreamName(name)
         ).getStreamDescription.getShards.asScala.map(_.getShardId)
@@ -274,8 +289,29 @@ case class KinesisStream(
         }
       }
 
-      client.getShardIterator(request).getShardIterator
+      kinesisClient.getShardIterator(request).getShardIterator
     }
+  }
+
+  def putStreamLatencyMetric(streamName: String, shardId: String, recordArrivalTime: Long) = {
+    cloudWatchClient.putMetricData(
+      new PutMetricDataRequest()
+        .withNamespace("Flow")
+        .withMetricData(
+          new MetricDatum()
+            .withMetricName("StreamLatency")
+            .withDimensions(
+              new Dimension()
+                .withName("StreamName")
+                .withValue(name),
+              new Dimension()
+                .withName("ShardId")
+                .withValue(shardId)
+            )
+            .withValue(DateTime.now().minus(recordArrivalTime).getMillis.toDouble)
+            .withUnit(StandardUnit.Milliseconds)
+        )
+    )
   }
 
 }
