@@ -254,6 +254,7 @@ case class KinesisStream(
 
       streamNameShardIds += (name -> shardIds)
 
+      Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
       shardIds
     } else {
       streamNameShardIds(name)
