@@ -222,7 +222,7 @@ case class KinesisStream(
         * Stream Latency = Current Time - Record Approximate Arrival Timestamp (approx. arrival in the stream)
         *
         */
-      putStreamLatencyMetric(name, shardId, record.getApproximateArrivalTimestamp.getTime)
+      //putStreamLatencyMetric(name, shardId, record.getApproximateArrivalTimestamp.getTime)
 
       shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
       val buffer = record.getData
