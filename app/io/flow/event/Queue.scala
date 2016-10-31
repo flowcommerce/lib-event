@@ -9,7 +9,7 @@ import play.api.libs.json.{JsValue, Json}
 import play.api.Logger
 
 import scala.reflect.runtime.universe._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
 
@@ -37,8 +37,7 @@ class KinesisQueue @javax.inject.Inject() (
     config.requiredString("aws.secret.key")
   )
 
-  // Explicitly create streams with 4 shards to allow 20 concurrent connections
-  private[this] val numberShards = 4
+  private[this] val numberShards = 1
   private[this] val kinesisClient = new AmazonKinesisClient(credentials)
   private[this] val cloudWatchClient = new AmazonCloudWatchClient(credentials)
 
@@ -106,11 +105,7 @@ case class KinesisStream(
   }
 
   def consume(f: JsValue => Unit)(implicit ec: ExecutionContext) {
-    processMessages(f).recover {
-      case e: Throwable => {
-        Logger.error(s"FlowKinesisError Stream[$name] Error processing: $e")
-      }
-    }
+    processMessages(f)
   }
 
   /**
@@ -128,6 +123,9 @@ case class KinesisStream(
       case e: ResourceNotFoundException => {
         Logger.error(s"FlowKinesisError Stream[$name] does not exist. Error Message: ${e.getMessage}")
       }
+      case e: ProvisionedThroughputExceededException => {
+        Logger.error(s"FlowKinesisError Stream[$name] exceeded provisioned throughput. Error Message: ${e.getMessage}")
+      }
       case e: Throwable => {
         Logger.error(s"FlowKinesisError Stream[$name] Could not insert message. Error Message: ${e.getMessage}")
       }
@@ -139,13 +137,10 @@ case class KinesisStream(
    **/
   def processMessages[T](
     f: JsValue => Unit
-  )(implicit ec: ExecutionContext): Future[Unit] = {
-    getShards.map { shards =>
-      shards.map { shardId =>
-        getShardIterator(shardId).map { shardIterator =>
-          processShard(shardIterator, shardId, f)
-        }
-      }
+  )(implicit ec: ExecutionContext): Unit = {
+    getShards.foreach { shardId =>
+      val shardIterator = getShardIterator(shardId)
+      processShard(shardIterator, shardId, f)
     }
   }
 
@@ -153,28 +148,27 @@ case class KinesisStream(
     shardIterator: String,
     shardId: String,
     f: JsValue => Unit
-  )(implicit ec: ExecutionContext): Future[Unit] = {
-    getMessagesForShardIterator(shardIterator, shardId).map { result =>
-      result.messages.foreach{ msg =>
-        f(Json.parse(msg.getBytes("UTF-8")))
+  )(implicit ec: ExecutionContext): Unit = {
+    val results = getMessagesForShardIterator(shardIterator, shardId)
+    results.messages.foreach{ msg =>
+      f(Json.parse(msg.getBytes("UTF-8")))
+    }
+
+    results.nextShardIterator.map{nextShardIterator =>
+
+      /**
+        * For best results, sleep for at least one second (1000 milliseconds) between calls to getRecords to avoid exceeding the limit on getRecords frequency.
+        *
+        * Documentation:
+        * https://docs.aws.amazon.com/streams/latest/dev/developing-consumers-with-sdk.html?shortFooter=true#kinesis-using-sdk-java-get-data-getrecords
+        */
+      try {
+        Thread.sleep(1000)
+      } catch {
+        case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
       }
 
-      result.nextShardIterator.map{nextShardIterator =>
-
-        /**
-          * For best results, sleep for at least one second (1000 milliseconds) between calls to getRecords to avoid exceeding the limit on getRecords frequency.
-          *
-          * Documentation:
-          * https://docs.aws.amazon.com/streams/latest/dev/developing-consumers-with-sdk.html?shortFooter=true#kinesis-using-sdk-java-get-data-getrecords
-          */
-        try {
-          Thread.sleep(1000)
-        } catch {
-          case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
-        }
-
-        processShard(nextShardIterator, shardId, f)
-      }
+      processShard(nextShardIterator, shardId, f)
     }
   }
 
@@ -213,38 +207,36 @@ case class KinesisStream(
   def getMessagesForShardIterator(
     shardIterator: String,
     shardId: String
-  )(implicit ec: ExecutionContext): Future[KinesisShardMessageSummary] = {
-    Future {
-      val request = new GetRecordsRequest()
-        .withLimit(recordLimit)
-        .withShardIterator(shardIterator)
-      val result = kinesisClient.getRecords(request)
-      val millisBehindLatest = result.getMillisBehindLatest
-      val records = result.getRecords
+  )(implicit ec: ExecutionContext): KinesisShardMessageSummary = {
+    val request = new GetRecordsRequest()
+      .withLimit(recordLimit)
+      .withShardIterator(shardIterator)
+    val result = kinesisClient.getRecords(request)
+    val millisBehindLatest = result.getMillisBehindLatest
+    val records = result.getRecords
 
-      val messages = records.asScala.map{record =>
+    val messages = records.asScala.map{record =>
 
-        /**
-          * For each unique stream/shard, put a metric to AWS CloudWatch indicating the stream latency
-          * Stream Latency = Current Time - Record Approximate Arrival Timestamp (approx. arrival in the stream)
-          *
-          */
-        putStreamLatencyMetric(name, shardId, record.getApproximateArrivalTimestamp.getTime)
+      /**
+        * For each unique stream/shard, put a metric to AWS CloudWatch indicating the stream latency
+        * Stream Latency = Current Time - Record Approximate Arrival Timestamp (approx. arrival in the stream)
+        *
+        */
+      putStreamLatencyMetric(name, shardId, record.getApproximateArrivalTimestamp.getTime)
 
-        shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
-        val buffer = record.getData
-        val bytes = Array.fill[Byte](buffer.remaining)(0)
-        buffer.get(bytes)
-        new String(bytes, "UTF-8")
-      }
-
-      val nextShardIterator = (millisBehindLatest == 0) match {
-        case true => None
-        case false => Some(result.getNextShardIterator)
-      }
-
-      KinesisShardMessageSummary(messages, nextShardIterator)
+      shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
+      val buffer = record.getData
+      val bytes = Array.fill[Byte](buffer.remaining)(0)
+      buffer.get(bytes)
+      new String(bytes, "UTF-8")
     }
+
+    val nextShardIterator = (millisBehindLatest == 0) match {
+      case true => None
+      case false => Some(result.getNextShardIterator)
+    }
+
+    KinesisShardMessageSummary(messages, nextShardIterator)
   }
 
   /**
@@ -253,44 +245,41 @@ case class KinesisStream(
     *
     * On service startup, the API will only be called at most once per stream name
     */
-  def getShards(implicit ec: ExecutionContext): Future[Seq[String]] = {
-    Future {
-      if (!streamNameShardIds.contains(name)) {
-        val shardIds = kinesisClient.describeStream(
-          new DescribeStreamRequest()
-            .withStreamName(name)
-        ).getStreamDescription.getShards.asScala.map(_.getShardId)
+  def getShards(implicit ec: ExecutionContext): Seq[String] = {
+  if (!streamNameShardIds.contains(name)) {
+      val shardIds = kinesisClient.describeStream(
+        new DescribeStreamRequest()
+          .withStreamName(name)
+      ).getStreamDescription.getShards.asScala.map(_.getShardId)
 
-        streamNameShardIds += (name -> shardIds)
+      streamNameShardIds += (name -> shardIds)
 
-        shardIds
-      } else {
-        streamNameShardIds(name)
-      }
+      Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
+      shardIds
+    } else {
+      streamNameShardIds(name)
     }
   }
 
   def getShardIterator(
     shardId: String
-  )(implicit ec: ExecutionContext): Future[String] = {
-    Future {
-      val baseRequest = new GetShardIteratorRequest()
-        .withShardId(shardId)
-        .withStreamName(name)
+  )(implicit ec: ExecutionContext): String = {
+    val baseRequest = new GetShardIteratorRequest()
+      .withShardId(shardId)
+      .withStreamName(name)
 
-      val request = shardSequenceNumberMap.contains(shardId) match {
-        case true => {
-          baseRequest
-          .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
-          .withShardIteratorType(ShardIteratorType.AFTER_SEQUENCE_NUMBER)
-        }
-        case false => {
-          baseRequest.withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
-        }
+    val request = shardSequenceNumberMap.contains(shardId) match {
+      case true => {
+        baseRequest
+        .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+        .withShardIteratorType(ShardIteratorType.AFTER_SEQUENCE_NUMBER)
       }
-
-      kinesisClient.getShardIterator(request).getShardIterator
+      case false => {
+        baseRequest.withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+      }
     }
+
+    kinesisClient.getShardIterator(request).getShardIterator
   }
 
   def putStreamLatencyMetric(streamName: String, shardId: String, recordArrivalTime: Long) = {
