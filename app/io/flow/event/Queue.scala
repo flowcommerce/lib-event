@@ -177,12 +177,29 @@ case class KinesisStream(
   private[this] def setup(
     implicit ec: ExecutionContext
   ) {
-    withErrorHandler("setup") {
+    Try {
       kinesisClient.createStream(
         new CreateStreamRequest()
           .withStreamName(name)
           .withShardCount(numberShards)
       )
+    } match {
+      case Success(_) => {
+        // All good
+      }
+
+      case Failure(ex) => {
+        ex match {
+          case e: ResourceInUseException => {
+            // do nothing... already exists, ignore
+            Right(())
+          }
+
+          case e: Throwable => {
+            Left(s"FlowKinesisError Stream[$name] could not be created calling [io.flow.event.setup]. Error Message: ${e.getMessage}")
+          }
+        }
+      }
     }
   }
 
@@ -283,10 +300,6 @@ case class KinesisStream(
         results
       case Failure(ex) => {
         ex match {
-          case e: ResourceInUseException =>
-            val msg = s"FlowKinesisError Stream[$name] ResourceInUseException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
-            Logger.error(msg)
-            throw new Exception(msg, ex)
           case e: ResourceNotFoundException =>
             val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
             Logger.error(msg)
