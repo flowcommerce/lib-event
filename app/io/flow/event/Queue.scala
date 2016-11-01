@@ -211,7 +211,9 @@ case class KinesisStream(
     val request = new GetRecordsRequest()
       .withLimit(recordLimit)
       .withShardIterator(shardIterator)
-    val result = kinesisClient.getRecords(request)
+
+    val result = getRecords(request)
+
     val millisBehindLatest = result.getMillisBehindLatest
     val records = result.getRecords
 
@@ -237,6 +239,28 @@ case class KinesisStream(
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
+  }
+
+  def getRecords(request: GetRecordsRequest): GetRecordsResult = {
+    Try {
+      kinesisClient.getRecords(request)
+    } match {
+      case Success(results) =>
+        results
+      case Failure(ex) => {
+        ex match {
+          case throughputEx: ProvisionedThroughputExceededException =>
+            val msg = s"ProvisionedThroughputExceededException received in stream [$name].  Error was: ${ex.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case ex: Throwable => {
+            val msg = s"Failed get records.  Error was: ${ex.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          }
+        }
+      }
+    }
   }
 
   /**
