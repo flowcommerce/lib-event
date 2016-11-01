@@ -124,19 +124,24 @@ case class KinesisStream(
     } catch {
       case e: ResourceNotFoundException => {
         Logger.error(s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [putRecord]. Error Message: ${e.getMessage}")
+        val sw = new StringWriter()
+        e.printStackTrace(new PrintWriter(sw))
       }
       case e: InvalidArgumentException => {
         Logger.error(s"FlowKinesisError Stream[$name] InvalidArgumentException calling [putRecord]. Error Message: ${e.getMessage}")
+        val sw = new StringWriter()
+        e.printStackTrace(new PrintWriter(sw))
       }
       case e: ProvisionedThroughputExceededException => {
         Logger.error(s"FlowKinesisError Stream[$name] ProvisionedThroughputExceededException calling [putRecord]. Error Message: ${e.getMessage}")
+        val sw = new StringWriter()
+        e.printStackTrace(new PrintWriter(sw))
       }
       case e: Throwable => {
         Logger.error(s"FlowKinesisError Stream[$name] Could not insert message. Error Message: ${e.getMessage}")
+        val sw = new StringWriter()
+        e.printStackTrace(new PrintWriter(sw))
       }
-
-      val sw = new StringWriter()
-      e.printStackTrace(new PrintWriter(sw))
     }
   }
 
@@ -256,7 +261,6 @@ case class KinesisStream(
       case Success(results) =>
         results
       case Failure(ex) => {
-
         val sw = new StringWriter()
         ex.printStackTrace(new PrintWriter(sw))
 
@@ -310,19 +314,24 @@ case class KinesisStream(
           Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
           shardIds
         case Failure(ex) => {
-          case e: ResourceNotFoundException =>
-            val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getShards]. Error Message: ${e.getMessage}"
-            Logger.error(msg)
-          case e: LimitExceededException =>
-            val msg = s"FlowKinesisError Stream[$name] LimitExceededException calling [getShards]. Error Message: ${e.getMessage}"
-            Logger.error(msg)
-          case ex: Throwable => {
-            val msg = s"Failed get records.  Error was: ${ex.getMessage}"
-            Logger.error(msg)
-          }
-
           val sw = new StringWriter()
           ex.printStackTrace(new PrintWriter(sw))
+
+          ex match {
+            case e: ResourceNotFoundException =>
+              val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getShards]. Error Message: ${e.getMessage}"
+              Logger.error(msg)
+              throw new Exception(msg, ex)
+            case e: LimitExceededException =>
+              val msg = s"FlowKinesisError Stream[$name] LimitExceededException calling [getShards]. Error Message: ${e.getMessage}"
+              Logger.error(msg)
+              throw new Exception(msg, ex)
+            case ex: Throwable => {
+              val msg = s"Failed get records.  Error was: ${ex.getMessage}"
+              Logger.error(msg)
+              throw new Exception(msg, ex)
+            }
+          }
         }
       }
     } else {
@@ -355,19 +364,24 @@ case class KinesisStream(
         results.getShardIterator
 
       case Failure(ex) => {
-        case e: ResourceNotFoundException =>
-          val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getShardIterator]. Error Message: ${e.getMessage}"
-          Logger.error(msg)
-        case e: InvalidArgumentException =>
-          val msg = s"FlowKinesisError Stream[$name] InvalidArgumentException calling [getShardIterator]. Error Message: ${e.getMessage}"
-          Logger.error(msg)
-        case ex: Throwable => {
-          val msg = s"Failed get records.  Error was: ${ex.getMessage}"
-          Logger.error(msg)
-        }
-
         val sw = new StringWriter()
         ex.printStackTrace(new PrintWriter(sw))
+
+        ex match {
+          case e: ResourceNotFoundException =>
+            val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getShardIterator]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case e: InvalidArgumentException =>
+            val msg = s"FlowKinesisError Stream[$name] InvalidArgumentException calling [getShardIterator]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case ex: Throwable => {
+            val msg = s"Failed get records.  Error was: ${ex.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          }
+        }
       }
     }
 
