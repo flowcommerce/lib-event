@@ -14,7 +14,7 @@ import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
 
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClient
-import com.amazonaws.services.cloudwatch.model.{ResourceNotFoundException => _, _}
+import com.amazonaws.services.cloudwatch.model.{Dimension, MetricDatum, PutMetricDataRequest, StandardUnit}
 import org.joda.time.DateTime
 
 import collection.JavaConverters._
@@ -121,10 +121,13 @@ case class KinesisStream(
       )
     } catch {
       case e: ResourceNotFoundException => {
-        Logger.error(s"FlowKinesisError Stream[$name] does not exist. Error Message: ${e.getMessage}")
+        Logger.error(s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [putRecord]. Error Message: ${e.getMessage}")
+      }
+      case e: InvalidArgumentException => {
+        Logger.error(s"FlowKinesisError Stream[$name] InvalidArgumentException calling [putRecord]. Error Message: ${e.getMessage}")
       }
       case e: ProvisionedThroughputExceededException => {
-        Logger.error(s"FlowKinesisError Stream[$name] exceeded provisioned throughput. Error Message: ${e.getMessage}")
+        Logger.error(s"FlowKinesisError Stream[$name] ProvisionedThroughputExceededException calling [putRecord]. Error Message: ${e.getMessage}")
       }
       case e: Throwable => {
         Logger.error(s"FlowKinesisError Stream[$name] Could not insert message. Error Message: ${e.getMessage}")
@@ -249,8 +252,20 @@ case class KinesisStream(
         results
       case Failure(ex) => {
         ex match {
-          case throughputEx: ProvisionedThroughputExceededException =>
-            val msg = s"ProvisionedThroughputExceededException received in stream [$name].  Error was: ${ex.getMessage}"
+          case e: ResourceNotFoundException =>
+            val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getRecords]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case e: InvalidArgumentException =>
+            val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getRecords]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case e: ProvisionedThroughputExceededException =>
+            val msg = s"FlowKinesisError Stream[$name] ProvisionedThroughputExceededException calling [getRecords]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case e: ExpiredIteratorException =>
+            val msg = s"FlowKinesisError Stream[$name] ExpiredIteratorException calling [getRecords]. Error Message: ${e.getMessage}"
             Logger.error(msg)
             throw new Exception(msg, ex)
           case ex: Throwable => {
@@ -271,15 +286,36 @@ case class KinesisStream(
     */
   def getShards(implicit ec: ExecutionContext): Seq[String] = {
   if (!streamNameShardIds.contains(name)) {
-      val shardIds = kinesisClient.describeStream(
-        new DescribeStreamRequest()
-          .withStreamName(name)
-      ).getStreamDescription.getShards.asScala.map(_.getShardId)
 
-      streamNameShardIds += (name -> shardIds)
+      Try {
+        kinesisClient.describeStream(
+          new DescribeStreamRequest()
+            .withStreamName(name)
+        )
+      } match {
+        case Success(results) =>
+          val shardIds = results.getStreamDescription.getShards.asScala.map(_.getShardId)
 
-      Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
-      shardIds
+          streamNameShardIds += (name -> shardIds)
+
+          Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
+          shardIds
+        case Failure(ex) => {
+          case e: ResourceNotFoundException =>
+            val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getShards]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case e: LimitExceededException =>
+            val msg = s"FlowKinesisError Stream[$name] LimitExceededException calling [getShards]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          case ex: Throwable => {
+            val msg = s"Failed get records.  Error was: ${ex.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
+          }
+        }
+      }
     } else {
       streamNameShardIds(name)
     }
@@ -303,7 +339,29 @@ case class KinesisStream(
       }
     }
 
-    kinesisClient.getShardIterator(request).getShardIterator
+    Try {
+      kinesisClient.getShardIterator(request)
+    } match {
+      case Success(results) =>
+        results.getShardIterator
+
+      case Failure(ex) => {
+        case e: ResourceNotFoundException =>
+          val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [getShardIterator]. Error Message: ${e.getMessage}"
+          Logger.error(msg)
+          throw new Exception(msg, ex)
+        case e: InvalidArgumentException =>
+          val msg = s"FlowKinesisError Stream[$name] InvalidArgumentException calling [getShardIterator]. Error Message: ${e.getMessage}"
+          Logger.error(msg)
+          throw new Exception(msg, ex)
+        case ex: Throwable => {
+          val msg = s"Failed get records.  Error was: ${ex.getMessage}"
+          Logger.error(msg)
+          throw new Exception(msg, ex)
+        }
+      }
+    }
+
   }
 
   def putStreamLatencyMetric(streamName: String, shardId: String, recordArrivalTime: Long) = {
