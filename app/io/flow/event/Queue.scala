@@ -283,6 +283,10 @@ case class KinesisStream(
         results
       case Failure(ex) => {
         ex match {
+          case e: ResourceInUseException =>
+            val msg = s"FlowKinesisError Stream[$name] ResourceInUseException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
+            Logger.error(msg)
+            throw new Exception(msg, ex)
           case e: ResourceNotFoundException =>
             val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
             Logger.error(msg)
