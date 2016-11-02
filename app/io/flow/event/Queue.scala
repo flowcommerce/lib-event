@@ -234,9 +234,14 @@ case class KinesisStream(
         .withStreamName(name)
         .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
 
-      withErrorHandler("getShardIterator") {
+      val shardIterator = withErrorHandler("getShardIterator") {
         kinesisClient.getShardIterator(request).getShardIterator
       }
+
+      shardSequenceNumberMap += (shardId -> shardIterator)
+
+      Logger.info(s"Shard Id -> Shard Iterator mapping for stream [$name] and shardId [$shardId] is [$shardSequenceNumberMap]")
+      shardIterator
     } else {
       shardSequenceNumberMap(shardId)
     }
