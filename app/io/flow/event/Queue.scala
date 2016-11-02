@@ -128,6 +128,8 @@ case class KinesisStream(
 
   private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String, Seq[String]]
 
+  private[this] val ShardExpirationTimeMinutes = 5
+
   setup
 
   /**
@@ -239,7 +241,7 @@ case class KinesisStream(
     if (!shardIteratorMap.contains(shardId)) {
       getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
 
-    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(4))) {
+    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(ShardExpirationTimeMinutes-1))) {
       getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
     } else {
@@ -253,20 +255,29 @@ case class KinesisStream(
       .withShardId(shardId)
       .withStreamName(name)
 
+    val defaultShardIteratorType = ShardIteratorType.TRIM_HORIZON
+
     val request = shardIteratorType match {
       case ShardIteratorType.TRIM_HORIZON =>
         baseRequest
           .withShardIteratorType(shardIteratorType)
 
       case ShardIteratorType.AFTER_SEQUENCE_NUMBER =>
-        baseRequest
-          .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
-          .withShardIteratorType(shardIteratorType)
+        shardSequenceNumberMap.contains(shardId) match {
+          case false =>
+            Logger.info(s"No starting sequence number exists for stream name [$name] and shardId [$shardId].  Defaulting to [ShardIteratorType.TRIM_HORIZON]")
+            baseRequest
+              .withShardIteratorType(defaultShardIteratorType)
+          case true =>
+            baseRequest
+              .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+              .withShardIteratorType(shardIteratorType)
+        }
 
       case other =>
-        Logger.error(s"Unsupported ShardIteratorType [${other.toString}].  Please specify either [${ShardIteratorType.TRIM_HORIZON.toString}, ${ShardIteratorType.AFTER_SEQUENCE_NUMBER.toString}].  Defaulting to [${ShardIteratorType.TRIM_HORIZON.toString}]")
+        Logger.error(s"Unsupported ShardIteratorType [${other.toString}].  Please specify either [${ShardIteratorType.TRIM_HORIZON.toString}, ${ShardIteratorType.AFTER_SEQUENCE_NUMBER.toString}].  Defaulting to [${defaultShardIteratorType.toString}]")
         baseRequest
-          .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+          .withShardIteratorType(defaultShardIteratorType)
     }
 
     val shardIterator = withErrorHandler("getShardIterator") {
