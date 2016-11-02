@@ -124,6 +124,38 @@ case class KinesisStream(
 
   setup
 
+  /**
+    * Sets up the stream name in ec2, either an error or Unit
+    **/
+  private[this] def setup(
+    implicit ec: ExecutionContext
+  ) {
+    Try {
+      kinesisClient.createStream(
+        new CreateStreamRequest()
+          .withStreamName(name)
+          .withShardCount(numberShards)
+      )
+    } match {
+      case Success(_) => {
+        // All good
+      }
+
+      case Failure(ex) => {
+        ex match {
+          case e: ResourceInUseException => {
+            // do nothing... already exists, ignore
+            Right(())
+          }
+
+          case e: Throwable => {
+            Left(s"FlowKinesisError Stream[$name] could not be created calling [io.flow.event.setup]. Error Message: ${e.getMessage}")
+          }
+        }
+      }
+    }
+  }
+
   def publish(event: JsValue) {
     val partitionKey = Random().alphaNumeric(30)
     val data = Json.stringify(event)
@@ -160,6 +192,61 @@ case class KinesisStream(
     }
   }
 
+  /**
+    * Since there is an AWS account limit allowing only 5 concurrent requests to describe streams,
+    * cache the streamName -> shardIds.
+    *
+    * On service startup, the API will only be called at most once per stream name
+    */
+  def getShards(implicit ec: ExecutionContext): Seq[String] = {
+    if (!streamNameShardIds.contains(name)) {
+      withErrorHandler("getShards") {
+        val results = kinesisClient.describeStream(
+          new DescribeStreamRequest()
+            .withStreamName(name)
+        )
+
+        val shardIds = results.getStreamDescription.getShards.asScala.map(_.getShardId)
+
+        streamNameShardIds += (name -> shardIds)
+
+        Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
+        shardIds
+      }
+    } else {
+      streamNameShardIds(name)
+    }
+  }
+
+  /**
+    * If cache does not contain a key for the shardId, it is because the consuming application has just started.
+    * If consuming application has just restarted, ShardIteratorType.TRIM_HORIZON to read from the oldest record in the shard.
+    * Otherwise, use the sequence number from the cache.
+    *
+    * On service startup, the API will only be called at most once per shard per stream
+    */
+  def getShardIterator(
+    shardId: String
+  )(implicit ec: ExecutionContext): String = {
+    if (!shardSequenceNumberMap.contains(shardId)) {
+      val request = new GetShardIteratorRequest()
+        .withShardId(shardId)
+        .withStreamName(name)
+        .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+
+      val shardIterator = withErrorHandler("getShardIterator") {
+        kinesisClient.getShardIterator(request).getShardIterator
+      }
+
+      shardSequenceNumberMap += (shardId -> shardIterator)
+
+      Logger.info(s"Shard Id -> Shard Iterator mapping for stream [$name] and shardId [$shardId] is [$shardSequenceNumberMap]")
+      shardIterator
+    } else {
+      shardSequenceNumberMap(shardId)
+    }
+  }
+
   def processShard(
     shardIterator: String,
     shardId: String,
@@ -171,6 +258,7 @@ case class KinesisStream(
         arrivalTimestamp = new DateTime(msg.arrivalTimestamp),
         value = msg.message.getBytes("UTF-8")
       )
+
       f(data)
     }
 
@@ -189,38 +277,6 @@ case class KinesisStream(
       }
 
       processShard(nextShardIterator, shardId, f)
-    }
-  }
-
-  /**
-    * Sets up the stream name in ec2, either an error or Unit
-    **/
-  private[this] def setup(
-    implicit ec: ExecutionContext
-  ) {
-    Try {
-      kinesisClient.createStream(
-        new CreateStreamRequest()
-          .withStreamName(name)
-          .withShardCount(numberShards)
-      )
-    } match {
-      case Success(_) => {
-        // All good
-      }
-
-      case Failure(ex) => {
-        ex match {
-          case e: ResourceInUseException => {
-            // do nothing... already exists, ignore
-            Right(())
-          }
-
-          case e: Throwable => {
-            Left(s"FlowKinesisError Stream[$name] could not be created calling [io.flow.event.setup]. Error Message: ${e.getMessage}")
-          }
-        }
-      }
     }
   }
 
@@ -257,56 +313,6 @@ case class KinesisStream(
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
-  }
-
-  /**
-    * Since there is an AWS account limit allowing only 5 concurrent requests to describe streams,
-    * cache the streamName -> shardIds.
-    *
-    * On service startup, the API will only be called at most once per stream name
-    */
-  def getShards(implicit ec: ExecutionContext): Seq[String] = {
-    if (!streamNameShardIds.contains(name)) {
-      withErrorHandler("getShards") {
-        val results = kinesisClient.describeStream(
-          new DescribeStreamRequest()
-            .withStreamName(name)
-        )
-
-        val shardIds = results.getStreamDescription.getShards.asScala.map(_.getShardId)
-
-        streamNameShardIds += (name -> shardIds)
-
-        Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
-        shardIds
-      }
-    } else {
-      streamNameShardIds(name)
-    }
-  }
-
-  def getShardIterator(
-    shardId: String
-  )(implicit ec: ExecutionContext): String = {
-    val baseRequest = new GetShardIteratorRequest()
-      .withShardId(shardId)
-      .withStreamName(name)
-
-    val request = shardSequenceNumberMap.contains(shardId) match {
-      case true => {
-        baseRequest
-        .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
-        .withShardIteratorType(ShardIteratorType.AFTER_SEQUENCE_NUMBER)
-      }
-      case false => {
-        baseRequest.withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
-      }
-    }
-
-    withErrorHandler("getShardIterator") {
-      kinesisClient.getShardIterator(request).getShardIterator
-    }
-
   }
 
   private[this] def withErrorHandler[T](
