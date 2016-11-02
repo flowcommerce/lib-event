@@ -12,6 +12,7 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
 import org.joda.time.DateTime
+import org.joda.time.format.ISODateTimeFormat.dateTimeParser
 import collection.JavaConverters._
 
 trait Queue {
@@ -23,11 +24,32 @@ trait Stream {
   def consume(f: Record => Unit)(implicit ec: ExecutionContext)
 }
 
-case class Record(
-  js: JsValue,
-  arrivalTimestamp: DateTime
-)
+object Record {
 
+  def fromByteArray(arrivalTimestamp: DateTime, value: Array[Byte]): Record = {
+    fromJsValue(arrivalTimestamp, Json.parse(value))
+  }
+
+  def fromJsValue(arrivalTimestamp: DateTime, js: JsValue): Record = {
+    Record(
+      eventId = Util.mustParseString(js, "event_id"),
+      timestamp = dateTimeParser.parseDateTime(
+        Util.mustParseString(js, "timestamp")
+      ),
+      js = js,
+      arrivalTimestamp = arrivalTimestamp
+    )
+  }
+  
+}
+
+
+case class Record(
+  eventId: String,
+  timestamp: DateTime,
+  arrivalTimestamp: DateTime,
+  js: JsValue
+)
 
 case class Message(
   message: String,
@@ -227,10 +249,9 @@ case class KinesisStream(
   )(implicit ec: ExecutionContext): Unit = {
     val results = getMessagesForShardIterator(shardIterator, shardId)
     results.messages.foreach { msg =>
-
-      val data = Record(
-        js = Json.parse(msg.message.getBytes("UTF-8")),
-        arrivalTimestamp = new DateTime(msg.arrivalTimestamp)
+      val data = Record.fromByteArray(
+        arrivalTimestamp = new DateTime(msg.arrivalTimestamp),
+        value = msg.message.getBytes("UTF-8")
       )
 
       f(data)
@@ -365,12 +386,12 @@ class MockStream extends Stream {
 
       case one :: rest => {
         events.trimStart(1)
-        f(
-          Record(
-            js = one,
-            arrivalTimestamp = DateTime.now()
-          )
+
+        val data = Record.fromJsValue(
+          arrivalTimestamp = new DateTime(),
+          js = one
         )
+        f(data)
       }
     }
   }
