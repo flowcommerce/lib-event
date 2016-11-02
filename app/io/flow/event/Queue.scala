@@ -128,7 +128,7 @@ case class KinesisStream(
 
   private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String, Seq[String]]
 
-  private[this] val ShardExpirationTimeMinutes = 5
+  private[this] val ShardIteratorExpirationTimeMinutes = 5
 
   setup
 
@@ -241,7 +241,7 @@ case class KinesisStream(
     if (!shardIteratorMap.contains(shardId)) {
       getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
 
-    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(ShardExpirationTimeMinutes-1))) {
+    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(ShardIteratorExpirationTimeMinutes-1))) {
       getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
     } else {
