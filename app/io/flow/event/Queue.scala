@@ -56,6 +56,11 @@ case class Message(
   arrivalTimestamp: DateTime
 )
 
+case class ShardIterator(
+  shardIterator: String,
+  timestamp: DateTime
+)
+
 class KinesisQueue @javax.inject.Inject() (
   config: io.flow.play.util.Config
 ) extends Queue {
@@ -118,6 +123,7 @@ case class KinesisStream(
     * https://docs.aws.amazon.com/streams/latest/dev/troubleshooting-consumers.html?shortFooter=true
     */
   private[this] val recordLimit = 750
+  private[this] var shardIteratorMap = scala.collection.mutable.Map.empty[String, ShardIterator]
   private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String, String]
 
   private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String, Seq[String]]
@@ -221,31 +227,42 @@ case class KinesisStream(
   /**
     * If cache does not contain a key for the shardId, it is because the consuming application has just started.
     * If consuming application has just restarted, ShardIteratorType.TRIM_HORIZON to read from the oldest record in the shard.
-    * Otherwise, use the sequence number from the cache.
+    * Else,
+    * If cached shard iterator is older than 3 minutes, refresh the cache since it expires after 5 minutes
+    * Otherwise, use cached shard iterator
     *
     * On service startup, the API will only be called at most once per shard per stream
     */
   def getShardIterator(
     shardId: String
   )(implicit ec: ExecutionContext): String = {
-    if (!shardSequenceNumberMap.contains(shardId)) {
-      val request = new GetShardIteratorRequest()
-        .withShardId(shardId)
-        .withStreamName(name)
-        .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+    if (!shardIteratorMap.contains(shardId)) {
+      getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
 
-      val shardIterator = withErrorHandler("getShardIterator") {
-        kinesisClient.getShardIterator(request).getShardIterator
-      }
+    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(3))) {
+      getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
-      shardSequenceNumberMap += (shardId -> shardIterator)
-
-      Logger.info(s"Shard Id -> Shard Iterator mapping for stream [$name] and shardId [$shardId] is [$shardSequenceNumberMap]")
-      shardIterator
     } else {
-      shardSequenceNumberMap(shardId)
+      shardIteratorMap(shardId).shardIterator
     }
   }
+
+  def getShardIterator(shardId: String, shardIteratorType: ShardIteratorType): String = {
+    val request = new GetShardIteratorRequest()
+      .withShardId(shardId)
+      .withStreamName(name)
+      .withShardIteratorType(shardIteratorType)
+
+    val shardIterator = withErrorHandler("getShardIterator") {
+      kinesisClient.getShardIterator(request).getShardIterator
+    }
+
+    shardIteratorMap += (shardId -> ShardIterator(shardIterator = shardIterator, timestamp = DateTime.now()))
+
+    Logger.info(s"Shard Id -> Shard Iterator mapping for stream [$name] and shardId [$shardId] is [$shardIteratorMap]")
+    shardIterator
+  }
+
 
   def processShard(
     shardIterator: String,
