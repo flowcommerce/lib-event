@@ -248,10 +248,26 @@ case class KinesisStream(
   }
 
   def getShardIterator(shardId: String, shardIteratorType: ShardIteratorType): String = {
-    val request = new GetShardIteratorRequest()
+
+    val baseRequest = new GetShardIteratorRequest()
       .withShardId(shardId)
       .withStreamName(name)
-      .withShardIteratorType(shardIteratorType)
+
+    val request = shardIteratorType match {
+      case ShardIteratorType.TRIM_HORIZON =>
+        baseRequest
+          .withShardIteratorType(shardIteratorType)
+
+      case ShardIteratorType.AFTER_SEQUENCE_NUMBER =>
+        baseRequest
+          .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+          .withShardIteratorType(shardIteratorType)
+
+      case other =>
+        Logger.error(s"Unsupported ShardIteratorType [${other.toString}].  Please specify either [${ShardIteratorType.TRIM_HORIZON.toString}, ${ShardIteratorType.AFTER_SEQUENCE_NUMBER.toString}].  Defaulting to [${ShardIteratorType.TRIM_HORIZON.toString}]")
+        baseRequest
+          .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+    }
 
     val shardIterator = withErrorHandler("getShardIterator") {
       kinesisClient.getShardIterator(request).getShardIterator
