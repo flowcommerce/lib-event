@@ -239,7 +239,7 @@ case class KinesisStream(
     if (!shardIteratorMap.contains(shardId)) {
       getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
 
-    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(3))) {
+    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(4))) {
       getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
     } else {
