@@ -4,13 +4,13 @@ import io.flow.play.util.FlowEnvironment
 
 case class ApidocClass(
   service: String,
-  version: String,
+  version: Int,
   name: String
 )
 
 object StreamNames {
 
-  private[this] val ApidocClassRegexp = "^io\\.flow\\.([a-z]+(\\.[a-z]+)*)\\.(v\\d+)\\.models\\.(\\w+)$".r
+  private[this] val ApidocClassRegexp = """^io\.flow\.([a-z]+(\.[a-z]+)*)\.v(\d+)\.models\.(\w+)$""".r
   
   def parse(name: String): Option[ApidocClass] = {
     name match {
@@ -18,7 +18,7 @@ object StreamNames {
         Some(
           ApidocClass(
             service = service,
-            version = version,
+            version = version.toInt,
             name = toSnakeCase(n)
           )
         )
@@ -50,7 +50,7 @@ case class StreamNames(env: FlowEnvironment) {
     */
   def json(className: String): Option[String] = {
     StreamNames.parse(className).map { apidoc =>
-      s"$streamEnv.${apidoc.service}.${apidoc.version}.${apidoc.name}.json"
+      s"$streamEnv.${apidoc.service}.v${apidoc.version}.${apidoc.name}.json"
     }
   }
 
