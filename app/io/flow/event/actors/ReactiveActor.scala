@@ -1,43 +1,73 @@
 package io.flow.event.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.actors.ReactiveActor.Messages.{Ping, Poll}
 import io.flow.play.actors.ErrorHandler
+import play.api.Logger
 import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-
 object ReactiveActor {
   object Messages {
     case object Changed
-    case object Ping
-    case object Poll
   }
 }
 
+/**
+  * Reactive Actor responds to change events, invoking process no more
+  * than once per quiet period. This allows an actor to receive an
+  * event on every change (even high volume), invoking process quickly
+  * but periodically (e.g. 2x / second rather than after every event).
+  * 
+  * A poll interval ensures that process is called at least once every
+  * 60 seconds (the default)
+  * 
+  * To extend this class:
+  *   - implement system, process()
+  *   - call start(...) w/ the name of the execution context to use
+  *   - Send a ReactiveActor.Messages.Changed message on every change,
+  *     or just rely on Poll
+  */
 trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
-
-  def pollTimeSeconds: Int = 60
-
-  private[this] var nextProcess: Option[DateTime] = None
-
-  def quietTimeMs = 500
-
-  def executionContext: ExecutionContext
-
-  private[this] implicit val ec = executionContext
 
   def system: ActorSystem
 
+  def process()
+
+  def quietTimeMs = 500
+
+  def start(
+    executionContextName: String,
+    pollTime: FiniteDuration = FiniteDuration(60, SECONDS),
+    pingTime: FiniteDuration = FiniteDuration(250, MILLISECONDS)
+  ) {
+    implicit val ec = system.dispatchers.lookup(executionContextName)
+    startWithExecutionContext(pollTime, pingTime)
+  }
+
+  def startWithExecutionContext(
+    pollTime: FiniteDuration = FiniteDuration(60, SECONDS),
+    pingTime: FiniteDuration = FiniteDuration(250, MILLISECONDS)
+  ) (
+    implicit executionContext: ExecutionContext
+  ) {
+    Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime, ping every $pingTime")
+    system.scheduler.schedule(pollTime, pollTime, self, Poll)
+    system.scheduler.schedule(pingTime, pingTime, self, Ping)
+  }
+
+  private[this] var nextProcess: Option[DateTime] = None
+  private[this] case object Ping
+  private[this] case object Poll
+  
   override def receive = akka.event.LoggingReceive {
 
     case msg @ ReactiveActor.Messages.Changed => withErrorHandler(msg) {
       setNextProcess()
     }
 
-    case msg @ ReactiveActor.Messages.Poll => withErrorHandler(msg) {
+    case msg @ Poll => withErrorHandler(msg) {
       setNextProcess()
     }
 
@@ -53,22 +83,6 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
     case msg: Any => logUnhandledMessage(msg)
 
   }
-
-  def process()
-
-  system.scheduler.schedule(
-    FiniteDuration(pollTimeSeconds, SECONDS),
-    FiniteDuration(pollTimeSeconds, SECONDS),
-    self,
-    Poll
-  )
-
-  system.scheduler.schedule(
-    FiniteDuration(250, MILLISECONDS),
-    FiniteDuration(250, MILLISECONDS),
-    self,
-    Ping
-  )
 
   def setNextProcess() {
     if (nextProcess.isEmpty) {
