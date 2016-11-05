@@ -34,4 +34,22 @@ class StreamNamesSpec extends PlaySpec with OneAppPerSuite {
     dev.json("io.flow.sample.v0.Event") must be(None)
   }
 
+  "parse" in {
+    StreamNames.parse("io.flow.organization.event.v0.models.OrganizationEvent") must equal(
+      Some(
+        ApidocClass(
+          namespace = "io.flow",
+          service = "organization.event",
+          version = 0,
+          name = "organization_event"
+        )
+      )
+    )
+
+    StreamNames.parse("io.flow.organization.event.v0.models.OrganizationEvent").get.namespaces must equal(
+      Seq("organization", "event")
+    )
+  }
+
+  
 }

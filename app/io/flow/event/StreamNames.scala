@@ -3,20 +3,27 @@ package io.flow.event
 import io.flow.play.util.FlowEnvironment
 
 case class ApidocClass(
+  namespace: String,
   service: String,
   version: Int,
   name: String
-)
+) {
+
+  val namespaces: Seq[String] = service.split("\\.")
+
+}
+
 
 object StreamNames {
 
-  private[this] val ApidocClassRegexp = """^io\.flow\.([a-z]+(\.[a-z]+)*)\.v(\d+)\.models\.(\w+)$""".r
+  private[this] val ApidocClassRegexp = """^(io\.flow)\.([a-z]+(\.[a-z]+)*)\.v(\d+)\.models\.(\w+)$""".r
   
   def parse(name: String): Option[ApidocClass] = {
     name match {
-      case ApidocClassRegexp(service, _, version, n) => {
+      case ApidocClassRegexp(namespace, service, _, version, n) => {
         Some(
           ApidocClass(
+            namespace = namespace,
             service = service,
             version = version.toInt,
             name = toSnakeCase(n)
