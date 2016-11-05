@@ -40,7 +40,7 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
   def start(
     executionContextName: String,
     pollTime: FiniteDuration = FiniteDuration(60, SECONDS),
-    pingTime: FiniteDuration = FiniteDuration(250, MILLISECONDS)
+    pingTime: FiniteDuration = FiniteDuration(100, MILLISECONDS)
   ) {
     implicit val ec = system.dispatchers.lookup(executionContextName)
     startWithExecutionContext(pollTime, pingTime)
@@ -48,7 +48,7 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
 
   def startWithExecutionContext(
     pollTime: FiniteDuration = FiniteDuration(60, SECONDS),
-    pingTime: FiniteDuration = FiniteDuration(250, MILLISECONDS)
+    pingTime: FiniteDuration = FiniteDuration(100, MILLISECONDS)
   ) (
     implicit executionContext: ExecutionContext
   ) {
