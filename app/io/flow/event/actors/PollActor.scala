@@ -1,7 +1,7 @@
 package io.flow.event.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.{Queue, Record}
+import io.flow.event.{Queue, MockQueue, Record}
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
@@ -30,9 +30,16 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   private[this] implicit var ec: ExecutionContext = null
 
+  private[this] def defaultDuration = {
+    queue match {
+      case q:  MockQueue => FiniteDuration(10, MILLISECONDS)
+      case _ => FiniteDuration(5, SECONDS)
+    }
+  }
+
   def start[T: TypeTag](
     executionContextName: String,
-    pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
+    pollTime: FiniteDuration = defaultDuration
   ) {
     val ec = system.dispatchers.lookup(executionContextName)
     startWithExecutionContext(ec, pollTime)
