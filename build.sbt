@@ -16,7 +16,7 @@ lazy val root = project
   .settings(
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.2.3",
+      "io.flow" %% "lib-play" % "0.2.4",
       "com.amazonaws" % "aws-java-sdk-cloudwatch" % awsVersion,
       "com.amazonaws" % "aws-java-sdk-kinesis" % awsVersion,
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
