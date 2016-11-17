@@ -7,12 +7,16 @@ import com.amazonaws.services.kinesis.AmazonKinesisClient
 import com.amazonaws.services.kinesis.model._
 import play.api.libs.json.{JsValue, Json}
 import play.api.Logger
+
 import scala.reflect.runtime.universe._
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
+
+import com.amazonaws.ClientConfiguration
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat.dateTimeParser
+
 import collection.JavaConverters._
 
 trait Queue {
@@ -70,8 +74,13 @@ class KinesisQueue @javax.inject.Inject() (
     config.requiredString("aws.secret.key")
   )
 
+  private[this] val clientConfig =
+    new ClientConfiguration()
+      .withMaxErrorRetry(5)
+      .withThrottledRetries(true)
+
   private[this] val numberShards = 1
-  private[this] val kinesisClient = new AmazonKinesisClient(credentials)
+  private[this] val kinesisClient = new AmazonKinesisClient(credentials, clientConfig)
 
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
