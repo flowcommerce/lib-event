@@ -8,7 +8,7 @@ scalaVersion in ThisBuild := "2.11.8"
 
 crossScalaVersions := Seq("2.11.8")
 
-val awsVersion = "1.11.56"
+val awsVersion = "1.11.57"
 
 lazy val root = project
   .in(file("."))
@@ -17,7 +17,6 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       "io.flow" %% "lib-play" % "0.2.4",
-      "com.amazonaws" % "aws-java-sdk-cloudwatch" % awsVersion,
       "com.amazonaws" % "aws-java-sdk-kinesis" % awsVersion,
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
