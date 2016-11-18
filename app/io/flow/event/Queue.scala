@@ -392,9 +392,13 @@ case class KinesisStream(
             val msg = s"FlowKinesisError Stream[$name] LimitExceededException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
             Logger.error(msg)
             throw new Exception(msg, ex)
+
+          /**
+            * Log ProvisionedThroughputExceededException as a warning to avoid noise as we expect to receive this often
+            */
           case e: ProvisionedThroughputExceededException =>
-            val msg = s"FlowKinesisError Stream[$name] ProvisionedThroughputExceededException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
-            Logger.error(msg)
+            val msg = s"FlowKinesisWarning Stream[$name] ProvisionedThroughputExceededException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
+            Logger.warn(msg)
             throw new Exception(msg, ex)
           case e: ExpiredIteratorException =>
             val msg = s"FlowKinesisError Stream[$name] ExpiredIteratorException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
