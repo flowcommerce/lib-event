@@ -76,7 +76,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
             } match {
               case Success(_) => // no-op
               case Failure(ex) => {
-                Logger.error(s"[${self.getClass.getName}] FlowError Error processing record: ${ex.getMessage}", ex)
+                Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
               }
             }
           }

@@ -81,7 +81,7 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
           } match {
             case Success(_) => // no-op
             case Failure(ex) => {
-              Logger.error(s"[${getClass.getName}] FlowError Error processing batch: ${ex.getMessage}", ex)
+              Logger.error(s"[${getClass.getName}] FlowEventError Error processing batch: ${ex.getMessage}", ex)
             }
           }
         }
