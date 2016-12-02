@@ -8,6 +8,7 @@ import play.api.Logger
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.reflect.runtime.universe.TypeTag
+import scala.util.{Failure, Success, Try}
 
 /**
   * Poll Actor periodicaly polls a kinesis stream (by default every 5
@@ -70,7 +71,14 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
         case Some(s) => {
           s.consume { record =>
-            process(record)
+            Try {
+              process(record)
+            } match {
+              case Success(_) => // no-op
+              case Failure(ex) => {
+                Logger.error(s"[${self.getClass.getName}] FlowError Error processing record: ${ex.getMessage}", ex)
+              }
+            }
           }
         }
       }

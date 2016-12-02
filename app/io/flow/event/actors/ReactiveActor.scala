@@ -7,6 +7,7 @@ import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 object ReactiveActor {
   object Messages {
@@ -74,8 +75,15 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
     case msg @ Ping => withErrorHandler(msg) {
       nextProcess.foreach { ts =>
         if (ts.isBeforeNow) {
-          process()
           nextProcess = None
+          Try {
+            process()
+          } match {
+            case Success(_) => // no-op
+            case Failure(ex) => {
+              Logger.error(s"[${getClass.getName}] FlowError Error processing batch: ${ex.getMessage}", ex)
+            }
+          }
         }
       }
     }
@@ -86,7 +94,7 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
 
   def setNextProcess() {
     if (nextProcess.isEmpty) {
-      nextProcess = Some((new DateTime()).plusMillis(quietTimeMs))
+      nextProcess = Some((DateTime.now).plusMillis(quietTimeMs))
     }
   }
 
