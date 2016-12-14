@@ -166,6 +166,7 @@ case class KinesisStream(
           }
 
           case e: Throwable => {
+            e.printStackTrace(System.err)
             Left(s"FlowKinesisError Stream[$name] could not be created calling [io.flow.event.setup]. Error Message: ${e.getMessage}")
           }
         }
@@ -379,6 +380,7 @@ case class KinesisStream(
       case Success(results) =>
         results
       case Failure(ex) => {
+        ex.printStackTrace(System.err)
         ex match {
           case e: ResourceNotFoundException =>
             val msg = s"FlowKinesisError Stream[$name] ResourceNotFoundException calling [io.flow.event.$methodName]. Error Message: ${e.getMessage}"
