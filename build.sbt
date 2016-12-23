@@ -8,7 +8,7 @@ scalaVersion in ThisBuild := "2.11.8"
 
 crossScalaVersions := Seq("2.11.8")
 
-val awsVersion = "1.11.68"
+val awsVersion = "1.11.73"
 
 lazy val root = project
   .in(file("."))
@@ -17,7 +17,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       "io.flow" %% "lib-play" % "0.2.9",
-      "com.amazonaws" % "aws-java-sdk-kinesis" % 1.11.73,
+      "com.amazonaws" % "aws-java-sdk-kinesis" % awsVersion,
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
