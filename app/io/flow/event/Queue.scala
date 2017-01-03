@@ -229,7 +229,8 @@ case class KinesisStream(
     * On service startup, the API will only be called at most once per stream name
     */
   def getShards(implicit ec: ExecutionContext): Seq[String] = {
-    if (!streamNameShardIds.contains(name)) {
+    // TODO: Add an expiration here
+    streamNameShardIds.get(name).getOrElse {
       withErrorHandler("getShards") {
         val results = kinesisClient.describeStream(
           new DescribeStreamRequest()
@@ -243,8 +244,6 @@ case class KinesisStream(
         Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
         shardIds
       }
-    } else {
-      streamNameShardIds(name)
     }
   }
 
@@ -260,11 +259,24 @@ case class KinesisStream(
   def getShardIterator(
     shardId: String
   )(implicit ec: ExecutionContext): String = {
-    val iterator = shardIteratorMap.get(shardId).filter(!_.isExpired).getOrElse {
-      val i = getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
-      Logger.info(s"Caching shard iterator stream [$name] and shardId [$shardId]: ${i.shardIterator}")
-      shardIteratorMap += (shardId -> i)
-      i
+    val iterator = shardIteratorMap.get(shardId) match {
+      case None => {
+        val i = getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
+        Logger.info(s"Caching shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
+        shardIteratorMap += (shardId -> i)
+        i
+      }
+
+      case Some(cachedIterator) => {
+        if (cachedIterator.isExpired) {
+          val i = getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
+          Logger.info(s"Refreshing shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
+          shardIteratorMap += (shardId -> i)
+          i
+        } else {
+          cachedIterator
+        }
+      }
     }
 
     iterator.shardIterator
@@ -370,10 +382,7 @@ case class KinesisStream(
 
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
-      case false =>
-        val nextShardItr = result.getNextShardIterator
-        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextShardItr, timestamp = DateTime.now()))
-        Some(result.getNextShardIterator)
+      case false => Some(result.getNextShardIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
