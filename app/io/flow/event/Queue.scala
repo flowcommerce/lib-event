@@ -364,7 +364,7 @@ case class KinesisStream(
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
       case false =>
-        val nextShardItr= result.getNextShardIterator
+        val nextShardItr = result.getNextShardIterator
         shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextShardItr, timestamp = DateTime.now()))
         Some(result.getNextShardIterator)
     }
