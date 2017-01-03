@@ -60,10 +60,24 @@ case class Message(
   arrivalTimestamp: DateTime
 )
 
+object QueueConstants {
+
+  val ShardIteratorExpirationTimeMinutes = 4
+
+}
+
+/**
+  * Wraps a kinesis shard iterator, adding a timestamp and expiration
+  */
 case class ShardIterator(
-  shardIterator: String,
-  timestamp: DateTime
-)
+  shardIterator: String
+) {
+
+  private[this] val expiresAt = DateTime.now.plusMinutes(QueueConstants.ShardIteratorExpirationTimeMinutes)
+
+  def isExpired: Boolean = expiresAt.isBeforeNow
+
+}
 
 class KinesisQueue @javax.inject.Inject() (
   config: io.flow.play.util.Config
@@ -136,8 +150,6 @@ case class KinesisStream(
   private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String, String]
 
   private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String, Seq[String]]
-
-  private[this] val ShardIteratorExpirationTimeMinutes = 5
 
   setup
 
@@ -217,7 +229,8 @@ case class KinesisStream(
     * On service startup, the API will only be called at most once per stream name
     */
   def getShards(implicit ec: ExecutionContext): Seq[String] = {
-    if (!streamNameShardIds.contains(name)) {
+    // TODO: Add an expiration here
+    streamNameShardIds.get(name).getOrElse {
       withErrorHandler("getShards") {
         val results = kinesisClient.describeStream(
           new DescribeStreamRequest()
@@ -231,8 +244,6 @@ case class KinesisStream(
         Logger.info(s"Stream Name -> Shard Ids mapping for stream [$name] is [$streamNameShardIds]")
         shardIds
       }
-    } else {
-      streamNameShardIds(name)
     }
   }
 
@@ -248,18 +259,30 @@ case class KinesisStream(
   def getShardIterator(
     shardId: String
   )(implicit ec: ExecutionContext): String = {
-    if (!shardIteratorMap.contains(shardId)) {
-      getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
+    val iterator = shardIteratorMap.get(shardId) match {
+      case None => {
+        val i = getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
+        Logger.info(s"Caching shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
+        shardIteratorMap += (shardId -> i)
+        i
+      }
 
-    } else if (shardIteratorMap(shardId).timestamp.isBefore(DateTime.now().minusMinutes(ShardIteratorExpirationTimeMinutes-1))) {
-      getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
-
-    } else {
-      shardIteratorMap(shardId).shardIterator
+      case Some(cachedIterator) => {
+        if (cachedIterator.isExpired) {
+          val i = getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
+          Logger.info(s"Refreshing shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
+          shardIteratorMap += (shardId -> i)
+          i
+        } else {
+          cachedIterator
+        }
+      }
     }
+
+    iterator.shardIterator
   }
 
-  def getShardIterator(shardId: String, shardIteratorType: ShardIteratorType): String = {
+  private[this] def getShardIterator(shardId: String, shardIteratorType: ShardIteratorType): ShardIterator = {
 
     val baseRequest = new GetShardIteratorRequest()
       .withShardId(shardId)
@@ -293,11 +316,7 @@ case class KinesisStream(
     val shardIterator = withErrorHandler("getShardIterator") {
       kinesisClient.getShardIterator(request).getShardIterator
     }
-
-    shardIteratorMap += (shardId -> ShardIterator(shardIterator = shardIterator, timestamp = DateTime.now()))
-
-    Logger.info(s"Shard Id -> Shard Iterator mapping for stream [$name] and shardId [$shardId] is [$shardIteratorMap]")
-    shardIterator
+    ShardIterator(shardIterator)
   }
 
 
@@ -365,7 +384,7 @@ case class KinesisStream(
       case true => None
       case false =>
         val nextShardItr = result.getNextShardIterator
-        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextShardItr, timestamp = DateTime.now()))
+        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextShardItr))
         Some(result.getNextShardIterator)
     }
 
@@ -439,7 +458,7 @@ class MockQueue extends Queue {
 @javax.inject.Singleton
 class MockStream extends Stream {
 
-  private var events = scala.collection.mutable.ListBuffer[JsValue]()
+  private[this] var events = scala.collection.mutable.ListBuffer[JsValue]()
 
   def publish(event: JsValue) {
     events += event
