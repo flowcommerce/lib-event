@@ -92,6 +92,7 @@ class KinesisQueue @javax.inject.Inject() (
     new ClientConfiguration()
       .withMaxErrorRetry(5)
       .withThrottledRetries(true)
+      .withConnectionTTL(60000)
 
   private[this] val numberShards = 1
   private[this] val kinesisClient = new AmazonKinesisClient(credentials, clientConfig)
