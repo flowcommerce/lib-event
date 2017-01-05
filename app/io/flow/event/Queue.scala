@@ -320,6 +320,10 @@ case class KinesisStream(
     ShardIterator(shardIterator)
   }
 
+  private[this] def refreshShardIterator(shardId: String, shardIterator: String) = {
+    shardIteratorMap += (shardId -> ShardIterator(shardIterator = shardIterator))
+  }
+
 
   def processShard(
     shardIterator: String,
@@ -351,7 +355,7 @@ case class KinesisStream(
       }
 
       // since this method is recursive, refresh the shard iterator to ensure validity
-      shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextShardIterator))
+      refreshShardIterator(shardId, nextShardIterator)
 
       processShard(nextShardIterator, shardId, f)
     }
@@ -388,8 +392,8 @@ case class KinesisStream(
       case true => None
       case false =>
         val nextShardItr = result.getNextShardIterator
-        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextShardItr))
-        Some(result.getNextShardIterator)
+        refreshShardIterator(shardId, nextShardItr)
+        Some(nextShardItr)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
