@@ -348,7 +348,7 @@ case class KinesisStream(
         * https://docs.aws.amazon.com/streams/latest/dev/developing-consumers-with-sdk.html?shortFooter=true#kinesis-using-sdk-java-get-data-getrecords
         */
       try {
-        Thread.sleep(1000)
+        Thread.sleep(1500)
       } catch {
         case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
       }
