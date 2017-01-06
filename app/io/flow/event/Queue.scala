@@ -353,10 +353,10 @@ case class KinesisStream(
         case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
       }
 
-      // since this method is recursive, get shard iterator from Kinesis to ensure validity
-      val i = refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
+      // since this method is recursive, ensure shard iterator is not expired, otherwise, get one from Kinesis
+      val i = getShardIterator(shardId)
 
-      processShard(i.shardIterator, shardId, f)
+      processShard(i, shardId, f)
     }
   }
 
