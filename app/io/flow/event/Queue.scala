@@ -67,7 +67,7 @@ object QueueConstants {
 }
 
 /**
-  * Wraps a kinesis shard iterator, adding a timestamp and expiration
+  * Wraps a kinesis shard iterator, adding an expiration
   */
 case class ShardIterator(
   shardIterator: String
@@ -262,18 +262,12 @@ case class KinesisStream(
   )(implicit ec: ExecutionContext): String = {
     val iterator = shardIteratorMap.get(shardId) match {
       case None => {
-        val i = getShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
-        Logger.info(s"Caching shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
-        shardIteratorMap += (shardId -> i)
-        i
+        refreshShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
       }
 
       case Some(cachedIterator) => {
         if (cachedIterator.isExpired) {
-          val i = getShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
-          Logger.info(s"Refreshing shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
-          shardIteratorMap += (shardId -> i)
-          i
+          refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
         } else {
           cachedIterator
         }
@@ -320,8 +314,13 @@ case class KinesisStream(
     ShardIterator(shardIterator)
   }
 
-  private[this] def refreshShardIterator(shardId: String, shardIterator: String) = {
-    shardIteratorMap += (shardId -> ShardIterator(shardIterator = shardIterator))
+  private[this] def refreshShardIterator(shardId: String, shardIteratorType: ShardIteratorType): ShardIterator = {
+    val i = getShardIterator(shardId, shardIteratorType)
+
+    Logger.info(s"Refreshing shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
+    shardIteratorMap += (shardId -> ShardIterator(shardIterator = i.shardIterator))
+
+    i
   }
 
 
@@ -340,7 +339,7 @@ case class KinesisStream(
       f(data)
     }
 
-    results.nextShardIterator.map { nextShardIterator =>
+    results.nextShardIterator.map { _ =>
 
       /**
         * For best results, sleep for at least one second (1000 milliseconds) between calls to getRecords to avoid exceeding the limit on getRecords frequency.
@@ -354,10 +353,10 @@ case class KinesisStream(
         case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
       }
 
-      // since this method is recursive, refresh the shard iterator to ensure validity
-      refreshShardIterator(shardId, nextShardIterator)
+      // since this method is recursive, get shard iterator from Kinesis to ensure validity
+      val i = refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
-      processShard(nextShardIterator, shardId, f)
+      processShard(i.shardIterator, shardId, f)
     }
   }
 
@@ -391,9 +390,9 @@ case class KinesisStream(
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
       case false =>
-        val nextShardItr = result.getNextShardIterator
-        refreshShardIterator(shardId, nextShardItr)
-        Some(nextShardItr)
+        // a bit redundant, but get shard iterator from Kinesis to ensure it is not expired
+        val i = refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
+        Some(i.shardIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
