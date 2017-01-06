@@ -348,7 +348,7 @@ case class KinesisStream(
         * https://docs.aws.amazon.com/streams/latest/dev/developing-consumers-with-sdk.html?shortFooter=true#kinesis-using-sdk-java-get-data-getrecords
         */
       try {
-        Thread.sleep(1000)
+        Thread.sleep(1500)
       } catch {
         case e: InterruptedException => sys.error(s"Error occurred while sleeping between calls to getRecords.  Error was: $e")
       }
@@ -389,7 +389,10 @@ case class KinesisStream(
 
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
-      case false => Some(result.getNextShardIterator)
+      case false =>
+        val nextIterator = result.getNextShardIterator
+        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator))
+        Some(nextIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
