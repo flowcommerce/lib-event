@@ -389,10 +389,7 @@ case class KinesisStream(
 
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
-      case false =>
-        // a bit redundant, but get shard iterator from Kinesis to ensure it is not expired
-        val i = refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
-        Some(i.shardIterator)
+      case false => Some(result.getNextShardIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
