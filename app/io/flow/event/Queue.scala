@@ -391,9 +391,9 @@ case class KinesisStream(
       case false =>
         val nextIterator = result.getNextShardIterator
 
-        val existingExpiresAt = shardIteratorMap(shardId)
+        val existingExpiresAt = shardIteratorMap(shardId).expiresAt
 
-        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator, expiresAt = existingExpiresAt.expiresAt))
+        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator, expiresAt = existingExpiresAt))
         Some(nextIterator)
     }
 
