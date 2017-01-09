@@ -70,10 +70,9 @@ object QueueConstants {
   * Wraps a kinesis shard iterator, adding an expiration
   */
 case class ShardIterator(
-  shardIterator: String
+  shardIterator: String,
+  expiresAt: DateTime = DateTime.now.plusMinutes(QueueConstants.ShardIteratorExpirationTimeMinutes)
 ) {
-
-  private[this] val expiresAt = DateTime.now.plusMinutes(QueueConstants.ShardIteratorExpirationTimeMinutes)
 
   def isExpired: Boolean = expiresAt.isBeforeNow
 
@@ -315,12 +314,12 @@ case class KinesisStream(
   }
 
   private[this] def refreshShardIterator(shardId: String, shardIteratorType: ShardIteratorType): ShardIterator = {
-    val i = getShardIterator(shardId, shardIteratorType)
+    val iterator = getShardIterator(shardId, shardIteratorType)
 
-    Logger.info(s"Refreshing shard iterator for stream [$name] shardId [$shardId]: ${i.shardIterator}")
-    shardIteratorMap += (shardId -> ShardIterator(shardIterator = i.shardIterator))
+    Logger.info(s"Refreshing shard iterator for stream [$name] shardId [$shardId]: ${iterator.shardIterator} expires at [${iterator.expiresAt}]")
+    shardIteratorMap += (shardId -> iterator)
 
-    i
+    iterator
   }
 
 
@@ -391,7 +390,10 @@ case class KinesisStream(
       case true => None
       case false =>
         val nextIterator = result.getNextShardIterator
-        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator))
+
+        val existingExpiresAt = shardIteratorMap(shardId).expiresAt
+
+        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator, expiresAt = existingExpiresAt))
         Some(nextIterator)
     }
 
