@@ -77,7 +77,12 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
               case Success(_) => // no-op
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
-                Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
+                val msg = ex.getMessage
+                // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
+                msg.matches(".*duplicate key value violates unique constraint.*_p\\d{4}_\\d{2}_\\d{2}_pkey.*") match {
+                  case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
+                  case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+                }
               }
             }
           }
