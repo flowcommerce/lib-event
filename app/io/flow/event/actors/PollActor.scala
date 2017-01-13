@@ -77,9 +77,9 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
               case Success(_) => // no-op
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
-                val msg = ex.getMessage
+
                 // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
-                msg.matches(".*duplicate key value violates unique constraint.*_p\\d{4}_\\d{2}_\\d{2}_pkey.*") match {
+                PollActor.filterExceptionMessage(ex.getMessage) match {
                   case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
                   case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
                 }
@@ -93,5 +93,11 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     case msg: Any => logUnhandledMessage(msg)
 
   }
+}
 
+object PollActor {
+  /** Checks whether the first line of an exception message matches a partman partitioning error, which is not critical. */
+  def filterExceptionMessage(message: String): Boolean = {
+    message.split("\\r?\\n").headOption.exists(_.matches(".*duplicate key value violates unique constraint.*_p\\d{4}_\\d{2}_\\d{2}_pkey.*"))
+  }
 }
