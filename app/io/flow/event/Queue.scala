@@ -3,7 +3,7 @@ package io.flow.event
 
 import io.flow.play.util.{FlowEnvironment, Random}
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
-import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClient, AmazonKinesisClientBuilder}
+import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 import com.amazonaws.services.kinesis.model._
 import play.api.libs.json.{JsValue, Json}
 import play.api.Logger
