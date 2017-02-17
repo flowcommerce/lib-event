@@ -2,8 +2,8 @@ package io.flow.event
 
 
 import io.flow.play.util.{FlowEnvironment, Random}
-import com.amazonaws.auth.BasicAWSCredentials
-import com.amazonaws.services.kinesis.AmazonKinesisClient
+import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
+import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClient, AmazonKinesisClientBuilder}
 import com.amazonaws.services.kinesis.model._
 import play.api.libs.json.{JsValue, Json}
 import play.api.Logger
@@ -94,7 +94,7 @@ class KinesisQueue @javax.inject.Inject() (
       .withConnectionTTL(60000)
 
   private[this] val numberShards = 1
-  private[this] val kinesisClient = new AmazonKinesisClient(credentials, clientConfig)
+  private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(credentials)).withClientConfiguration(clientConfig).build()
 
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
@@ -124,7 +124,7 @@ class KinesisQueue @javax.inject.Inject() (
 }
 
 case class KinesisStream(
-  kinesisClient: AmazonKinesisClient,
+  kinesisClient: AmazonKinesis,
   name: String,
   numberShards: Int = 1
 ) (
