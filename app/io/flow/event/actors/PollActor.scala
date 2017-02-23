@@ -40,20 +40,22 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def start[T: TypeTag](
     executionContextName: String,
-    pollTime: FiniteDuration = defaultDuration
+    pollTime: FiniteDuration = defaultDuration,
+    sequenceNumber: Option[String] = None
   ) {
     val ec = system.dispatchers.lookup(executionContextName)
-    startWithExecutionContext(ec, pollTime)
+    startWithExecutionContext(ec, pollTime, sequenceNumber)
   }
 
   def startWithExecutionContext[T: TypeTag](
     executionContext: ExecutionContext,
-    pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
+    pollTime: FiniteDuration = FiniteDuration(5, SECONDS),
+    sequenceNumber: Option[String] = None
   ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
     this.ec = executionContext
-    this.stream = Some(queue.stream[T])
+    this.stream = Some(queue.stream[T](sequenceNumber))
 
     system.scheduler.schedule(pollTime, pollTime, self, Poll)
   }
