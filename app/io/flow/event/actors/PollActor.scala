@@ -1,7 +1,7 @@
 package io.flow.event.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.{Queue, MockQueue, Record}
+import io.flow.event.{MockQueue, Queue, Record, SequenceNumberProvider}
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
@@ -29,6 +29,8 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def queue: Queue
 
+  def sequenceNumberProvider: SequenceNumberProvider
+
   private[this] implicit var ec: ExecutionContext = null
 
   private[this] def defaultDuration = {
@@ -40,22 +42,20 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def start[T: TypeTag](
     executionContextName: String,
-    pollTime: FiniteDuration = defaultDuration,
-    sequenceNumber: Option[String] = None
+    pollTime: FiniteDuration = defaultDuration
   ) {
     val ec = system.dispatchers.lookup(executionContextName)
-    startWithExecutionContext(ec, pollTime, sequenceNumber)
+    startWithExecutionContext(ec, pollTime)
   }
 
   def startWithExecutionContext[T: TypeTag](
     executionContext: ExecutionContext,
-    pollTime: FiniteDuration = FiniteDuration(5, SECONDS),
-    sequenceNumber: Option[String] = None
+    pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
   ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
     this.ec = executionContext
-    this.stream = Some(queue.stream[T](sequenceNumber))
+    this.stream = Some(queue.stream[T](sequenceNumberProvider))
 
     system.scheduler.schedule(pollTime, pollTime, self, Poll)
   }
