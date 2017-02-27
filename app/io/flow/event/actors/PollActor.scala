@@ -32,7 +32,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def sequenceNumberProvider: SequenceNumberProvider
 
-  private[this] val TakSnapshotSeconds: FiniteDuration = FiniteDuration(60, SECONDS)
+  private[this] val RecordSnapshotSeconds: FiniteDuration = FiniteDuration(60, SECONDS)
   private[this] var latestSnapshot: Option[Snapshot] = None
   private[this] var latestEventTimeReceived: Option[DateTime] = None
 
@@ -67,7 +67,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     /**
       * schedule actor message to record snapshots
       */
-    system.scheduler.schedule(TakSnapshotSeconds, TakSnapshotSeconds, self, RecordSnapshot)
+    system.scheduler.schedule(RecordSnapshotSeconds, RecordSnapshotSeconds, self, RecordSnapshot)
   }
 
   private[this] var stream: Option[io.flow.event.Stream] = None
