@@ -3,6 +3,7 @@ package io.flow.event.actors
 import akka.actor.{Actor, ActorLogging, ActorSystem}
 import io.flow.event.{MockQueue, Queue, Record, SequenceNumberProvider}
 import io.flow.play.actors.ErrorHandler
+import org.joda.time.DateTime
 import play.api.Logger
 
 import scala.concurrent.ExecutionContext
@@ -11,7 +12,7 @@ import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Poll Actor periodicaly polls a kinesis stream (by default every 5
+  * Poll Actor periodically polls a kinesis stream (by default every 5
   * seconds), invoking process once per message.
   * 
   * To extend this class:
@@ -24,6 +25,11 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     * Called once for every event read off the stream
     */
   def process(record: Record)
+
+  /**
+    * Called on a schedule to take snapshot of latest stream name/shard/sequence number
+    */
+  def takeSnapshot(record: Record)
 
   def system: ActorSystem
 
@@ -63,6 +69,9 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
   private[this] var stream: Option[io.flow.event.Stream] = None
   private[this] case object Poll
 
+  private[this] val TakSnapshotSeconds = 60
+  private[this] var nextSnapshot: Option[DateTime] = None
+
   def receive = akka.event.LoggingReceive {
 
     case msg @ Poll => withErrorHandler(msg) {
@@ -74,13 +83,14 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
         case Some(s) => {
           s.consume { record =>
             Try {
+              updateSnapshot(record)
               process(record)
             } match {
               case Success(_) => // no-op
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
 
-                // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
+                // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
                 PollActor.filterExceptionMessage(ex.getMessage) match {
                   case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
                   case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
@@ -94,6 +104,22 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
     case msg: Any => logUnhandledMessage(msg)
 
+  }
+
+  /**
+    *  If number of seconds since last snapshot is more than TakSnapshotSeconds, take snapshot of latest stream name/shard/sequence number
+    */
+  def updateSnapshot(record: Record): Unit = {
+    if (nextSnapshot.isEmpty) {
+      nextSnapshot = Some((new DateTime().plusSeconds(TakSnapshotSeconds))
+    }
+
+    nextSnapshot.foreach { ts =>
+      if (ts.isBeforeNow) {
+        takeSnapshot(record)
+        nextSnapshot = None
+      }
+    }
   }
 }
 

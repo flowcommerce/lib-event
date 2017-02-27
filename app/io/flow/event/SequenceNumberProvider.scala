@@ -13,24 +13,3 @@ trait SequenceNumberProvider {
     */
   def snapshot(streamName: String, shardId: String, sequenceNumber: String)
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
