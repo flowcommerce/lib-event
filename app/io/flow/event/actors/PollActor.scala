@@ -32,7 +32,6 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def sequenceNumberProvider: SequenceNumberProvider
 
-  private[this] val RecordSnapshotSeconds: FiniteDuration = FiniteDuration(60, SECONDS)
   private[this] var latestSnapshot: Option[Snapshot] = None
   private[this] var latestEventTimeReceived: Option[DateTime] = None
 
@@ -45,17 +44,21 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     }
   }
 
+  private[this] def defaultRecordSnapshotDuration = FiniteDuration(60, SECONDS)
+
   def start[T: TypeTag](
     executionContextName: String,
-    pollTime: FiniteDuration = defaultDuration
+    pollTime: FiniteDuration = defaultDuration,
+    recordSnapshotTime: FiniteDuration = defaultRecordSnapshotDuration
   ) {
     val ec = system.dispatchers.lookup(executionContextName)
-    startWithExecutionContext(ec, pollTime)
+    startWithExecutionContext(ec, pollTime, recordSnapshotTime)
   }
 
   def startWithExecutionContext[T: TypeTag](
     executionContext: ExecutionContext,
-    pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
+    pollTime: FiniteDuration = FiniteDuration(5, SECONDS),
+    recordSnapshotTime: FiniteDuration = FiniteDuration(60, SECONDS)
   ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
@@ -67,7 +70,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     /**
       * schedule actor message to record snapshots
       */
-    system.scheduler.schedule(RecordSnapshotSeconds, RecordSnapshotSeconds, self, RecordSnapshot)
+    system.scheduler.schedule(recordSnapshotTime, recordSnapshotTime, self, RecordSnapshot)
   }
 
   private[this] var stream: Option[io.flow.event.Stream] = None
