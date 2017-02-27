@@ -111,7 +111,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     */
   def updateSnapshot(record: Record): Unit = {
     if (nextSnapshot.isEmpty) {
-      nextSnapshot = Some((new DateTime().plusSeconds(TakSnapshotSeconds))
+      nextSnapshot = Some(new DateTime().plusSeconds(TakSnapshotSeconds))
     }
 
     nextSnapshot.foreach { ts =>
