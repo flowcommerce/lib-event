@@ -31,11 +31,11 @@ trait Stream {
 
 object Record {
 
-  def fromByteArray(arrivalTimestamp: DateTime, value: Array[Byte], shardId: String, sequenceNumber: String): Record = {
-    fromJsValue(arrivalTimestamp, Json.parse(value), shardId, sequenceNumber)
+  def fromByteArray(arrivalTimestamp: DateTime, value: Array[Byte], streamName: String, shardId: String, sequenceNumber: String): Record = {
+    fromJsValue(arrivalTimestamp, Json.parse(value), streamName, shardId, sequenceNumber)
   }
 
-  def fromJsValue(arrivalTimestamp: DateTime, js: JsValue, shardId: String, sequenceNumber: String): Record = {
+  def fromJsValue(arrivalTimestamp: DateTime, js: JsValue, streamName: String, shardId: String, sequenceNumber: String): Record = {
     Record(
       eventId = Util.mustParseString(js, "event_id"),
       timestamp = dateTimeParser.parseDateTime(
@@ -43,6 +43,7 @@ object Record {
       ),
       js = js,
       arrivalTimestamp = arrivalTimestamp,
+      streamName = streamName,
       shardId = shardId,
       sequenceNumber = sequenceNumber
     )
@@ -55,6 +56,7 @@ case class Record(
   eventId: String,
   timestamp: DateTime,
   arrivalTimestamp: DateTime,
+  streamName: String,
   shardId: String,
   sequenceNumber: String,
   js: JsValue
@@ -63,6 +65,7 @@ case class Record(
 case class Message(
   message: String,
   arrivalTimestamp: DateTime,
+  streamName: String,
   shardId: String,
   sequenceNumber: String
 )
@@ -347,6 +350,7 @@ case class KinesisStream(
       val data = Record.fromByteArray(
         arrivalTimestamp = new DateTime(msg.arrivalTimestamp),
         value = msg.message.getBytes("UTF-8"),
+        streamName = name,
         shardId = shardId,
         sequenceNumber = msg.sequenceNumber
       )
@@ -399,6 +403,7 @@ case class KinesisStream(
       Message(
         message = new String(bytes, "UTF-8"),
         arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+        streamName = name,
         shardId = shardId,
         sequenceNumber = record.getSequenceNumber
       )
@@ -502,6 +507,7 @@ class MockStream extends Stream {
 
         val data = Record.fromJsValue(
           arrivalTimestamp = new DateTime(),
+          streamName = new Random().alpha(20),
           shardId = UUID.randomUUID.toString,
           sequenceNumber = UUID.randomUUID.toString,
           js = one
