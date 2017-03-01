@@ -198,7 +198,7 @@ case class KinesisStream(
   }
 
   def publish(event: JsValue) {
-    val partitionKey = Random().alphaNumeric(30)
+    val partitionKey = "1",
     val data = Json.stringify(event)
     insertMessage(partitionKey, data)
   }
