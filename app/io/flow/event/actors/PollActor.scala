@@ -1,17 +1,18 @@
 package io.flow.event.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.{Queue, MockQueue, Record}
+import io.flow.event._
 import io.flow.play.actors.ErrorHandler
+import org.joda.time.DateTime
 import play.api.Logger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.reflect.runtime.universe.TypeTag
+import scala.reflect.runtime.universe._
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Poll Actor periodicaly polls a kinesis stream (by default every 5
+  * Poll Actor periodically polls a kinesis stream (by default every 5
   * seconds), invoking process once per message.
   * 
   * To extend this class:
@@ -29,6 +30,11 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def queue: Queue
 
+  def sequenceNumberProvider: SequenceNumberProvider
+
+  private[this] var latestSnapshot: Option[Snapshot] = None
+  private[this] var latestEventTimeReceived: Option[DateTime] = None
+
   private[this] implicit var ec: ExecutionContext = null
 
   private[this] def defaultDuration = {
@@ -38,28 +44,39 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     }
   }
 
+  private[this] def defaultRecordSnapshotDuration = FiniteDuration(60, SECONDS)
+
   def start[T: TypeTag](
     executionContextName: String,
-    pollTime: FiniteDuration = defaultDuration
+    pollTime: FiniteDuration = defaultDuration,
+    recordSnapshotTime: FiniteDuration = defaultRecordSnapshotDuration
   ) {
     val ec = system.dispatchers.lookup(executionContextName)
-    startWithExecutionContext(ec, pollTime)
+    startWithExecutionContext(ec, pollTime, recordSnapshotTime)
   }
 
   def startWithExecutionContext[T: TypeTag](
     executionContext: ExecutionContext,
-    pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
+    pollTime: FiniteDuration = FiniteDuration(5, SECONDS),
+    recordSnapshotTime: FiniteDuration = FiniteDuration(60, SECONDS)
   ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
     this.ec = executionContext
-    this.stream = Some(queue.stream[T])
+    this.stream = Some(queue.stream[T](sequenceNumberProvider))
 
     system.scheduler.schedule(pollTime, pollTime, self, Poll)
+
+    /**
+      * schedule actor message to record snapshots
+      */
+    system.scheduler.schedule(recordSnapshotTime, recordSnapshotTime, self, RecordSnapshot)
   }
 
   private[this] var stream: Option[io.flow.event.Stream] = None
+
   private[this] case object Poll
+  private[this] case object RecordSnapshot
 
   def receive = akka.event.LoggingReceive {
 
@@ -71,14 +88,16 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
         case Some(s) => {
           s.consume { record =>
+            latestEventTimeReceived = Some(DateTime.now())
+
             Try {
               process(record)
             } match {
-              case Success(_) => // no-op
+              case Success(_) => setCurrentSnapshot(record)
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
 
-                // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
+                // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
                 PollActor.filterExceptionMessage(ex.getMessage) match {
                   case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
                   case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
@@ -90,8 +109,40 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
       }
     }
 
+    /**
+      * If an event was received within the scheduled cycle, record the snapshot
+      */
+    case msg @ RecordSnapshot => withErrorHandler(msg) {
+      latestEventTimeReceived.foreach { timeReceived =>
+        if (timeReceived.isBeforeNow) {
+          latestSnapshot.foreach( snapshot =>
+            sequenceNumberProvider.snapshot(
+              streamName = snapshot.streamName,
+              shardId = snapshot.shardId,
+              sequenceNumber = snapshot.sequenceNumber
+            )
+          )
+
+          latestEventTimeReceived = None
+        }
+      }
+    }
+
     case msg: Any => logUnhandledMessage(msg)
 
+  }
+
+  /**
+    *  Store latest snapshot on consumed event in memory
+    */
+  def setCurrentSnapshot(record: Record) {
+    latestSnapshot = Some(
+      Snapshot(
+        streamName = record.streamName,
+        shardId = record.shardId,
+        sequenceNumber = record.sequenceNumber
+      )
+    )
   }
 }
 
