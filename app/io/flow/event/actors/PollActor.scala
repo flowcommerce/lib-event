@@ -92,9 +92,8 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
             Try {
               process(record)
-              setCurrentSnapshot(record)
             } match {
-              case Success(_) => // no-op
+              case Success(_) => setCurrentSnapshot(record)
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
 
