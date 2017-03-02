@@ -387,7 +387,7 @@ case class KinesisStream(
     }
 
     /**
-      * Must update shard iterator cache, event if we are up to date, otherwise, shard iterator will remain
+      * Must update shard iterator cache, even if we are up to date, otherwise, shard iterator will remain
       * at current position and we'll continue to loop and consume the same events.
       */
     shardIteratorMap += (shardId -> ShardIterator(shardIterator = result.getNextShardIterator))
