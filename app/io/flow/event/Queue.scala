@@ -386,15 +386,15 @@ case class KinesisStream(
       )
     }
 
+    /**
+      * Must update shard iterator cache, event if we are up to date, otherwise, shard iterator will remain
+      * at current position and we'll continue to loop and consume the same events.
+      */
+    shardIteratorMap += (shardId -> ShardIterator(shardIterator = result.getNextShardIterator))
+
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
-      case false =>
-        val nextIterator = result.getNextShardIterator
-
-        val existingExpiresAt = shardIteratorMap(shardId).expiresAt
-
-        shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator, expiresAt = existingExpiresAt))
-        Some(nextIterator)
+      case false => Some(result.getNextShardIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
