@@ -279,7 +279,8 @@ case class KinesisStream(
 
             refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
-          case None => refreshShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
+          case None =>
+            refreshShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
         }
       }
 

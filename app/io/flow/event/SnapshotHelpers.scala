@@ -14,32 +14,31 @@ case class LocalSnapshotManager(
   shardId: String
 ) {
 
-  val latestSnapshotsMap = scala.collection.mutable.Map.empty[String, Snapshot]
-
-  def key = s"$streamName-$shardId"
+  def key = s"$streamName:$shardId"
 
   /**
     * Helpers to maintain in memory copy of latest stream snapshot, inclusive of name, shard id, and sequence number
     */
-  def latestSnapshot: Option[Snapshot] = latestSnapshotsMap.get(key)
+  def latestSnapshot: Option[Snapshot] = LocalSnapshotManager.latestSnapshotsMap.get(key)
   def putSnapshot(snapshot: Snapshot) {
-    latestSnapshotsMap += (key -> snapshot)
+    LocalSnapshotManager.latestSnapshotsMap += (key -> snapshot)
   }
 
   /**
     * Helpers to main timestamps of most recent event consumed from a unique stream name/shard id
     */
-  def latestEventTimeReceived: Option[DateTime] = LocalSnapshotManager.latestEventTimeReceivedMap(key)
+  def latestEventTimeReceived: Option[DateTime] = LocalSnapshotManager.latestEventTimeReceivedMap.get(key).flatten
   def putLatestEventTimeReceived(optionalTimestamp: Option[DateTime]) {
     LocalSnapshotManager.latestEventTimeReceivedMap += (key -> optionalTimestamp)
   }
 }
 
 object LocalSnapshotManager {
+  val latestSnapshotsMap = scala.collection.mutable.Map.empty[String, Snapshot]
   val latestEventTimeReceivedMap = scala.collection.mutable.Map.empty[String, Option[DateTime]]
 
   def snapshotNameAndShardId(key: String): LocalSnapshotManager = {
-    val parsedKey = key.split("-")
+    val parsedKey = key.split(":")
 
     LocalSnapshotManager(
       streamName = parsedKey.headOption.getOrElse { sys.error(s"Invalid snapshot key [$key]") },

@@ -41,7 +41,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     }
   }
 
-  private[this] def defaultRecordSnapshotDuration = FiniteDuration(60, SECONDS)
+  private[this] def defaultRecordSnapshotDuration = FiniteDuration(20, SECONDS)
 
   def start[T: TypeTag](
     executionContextName: String,
@@ -85,7 +85,6 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
         case Some(s) => {
           s.consume { record =>
-
             val snapshotsHelper = LocalSnapshotManager(record.streamName, record.shardId)
             if (snapshotsHelper.latestEventTimeReceived.isEmpty) {
               snapshotsHelper.putLatestEventTimeReceived(Some(DateTime.now))
@@ -115,6 +114,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
       * if an event was received within the scheduled cycle, record the snapshot.
       */
     case msg @ RecordSnapshots => withErrorHandler(msg) {
+
       LocalSnapshotManager.latestEventTimeReceivedMap.foreach { elem =>
         val snapshotHelper = LocalSnapshotManager.snapshotNameAndShardId(elem._1)
         val timestamp = elem._2
