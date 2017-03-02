@@ -414,13 +414,15 @@ case class KinesisStream(
       )
     }
 
-    val nextIterator = result.getNextShardIterator
-
-    shardIteratorMap += (shardId -> ShardIterator(shardIterator = nextIterator))
+    /**
+      * Must update shard iterator cache, even if we are up to date, otherwise, shard iterator will remain
+      * at current position and we'll continue to loop and consume the same events.
+      */
+    shardIteratorMap += (shardId -> ShardIterator(shardIterator = result.getNextShardIterator))
 
     val nextShardIterator = (millisBehindLatest == 0) match {
       case true => None
-      case false => Some(nextIterator)
+      case false => Some(result.getNextShardIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
