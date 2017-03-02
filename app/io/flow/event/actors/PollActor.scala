@@ -32,9 +32,6 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   def sequenceNumberProvider: SequenceNumberProvider
 
-  private[this] var latestSnapshotsMap = scala.collection.mutable.Map.empty[String, Option[Snapshot]]
-  private[this] var latestEventTimeReceivedMap = scala.collection.mutable.Map.empty[String, Option[DateTime]]
-
   private[this] implicit var ec: ExecutionContext = null
 
   private[this] def defaultDuration = {
@@ -58,7 +55,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
   def startWithExecutionContext[T: TypeTag](
     executionContext: ExecutionContext,
     pollTime: FiniteDuration = FiniteDuration(5, SECONDS),
-    recordSnapshotTime: FiniteDuration = FiniteDuration(60, SECONDS)
+    recordSnapshotTime: FiniteDuration = defaultRecordSnapshotDuration
   ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
@@ -89,9 +86,9 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
         case Some(s) => {
           s.consume { record =>
 
-            val key = recordKey(record.streamName, record.shardId)
-            if (latestEventTimeReceivedMap(key).isEmpty) {
-              latestEventTimeReceivedMap += (key -> Some(DateTime.now))
+            val snapshotsHelper = LocalSnapshotManager(record.streamName, record.shardId)
+            if (snapshotsHelper.latestEventTimeReceived.isEmpty) {
+              snapshotsHelper.putLatestEventTimeReceived(Some(DateTime.now))
             }
 
             Try {
@@ -118,15 +115,15 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
       * if an event was received within the scheduled cycle, record the snapshot.
       */
     case msg @ RecordSnapshots => withErrorHandler(msg) {
-      latestEventTimeReceivedMap.foreach { elem =>
-        val key = elem._1
+      LocalSnapshotManager.latestEventTimeReceivedMap.foreach { elem =>
+        val snapshotHelper = LocalSnapshotManager.snapshotNameAndShardId(elem._1)
         val timestamp = elem._2
 
         timestamp.foreach { recordedTime =>
 
           // check if time to record snapshot
           if (recordedTime.isBeforeNow) {
-            latestSnapshotsMap(key).foreach { snapshot =>
+            snapshotHelper.latestSnapshot.foreach { snapshot =>
               sequenceNumberProvider.snapshot(
                 streamName = snapshot.streamName,
                 shardId = snapshot.shardId,
@@ -135,7 +132,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
             }
 
             // reset last event time received
-            latestEventTimeReceivedMap += (key -> None)
+            snapshotHelper.putLatestEventTimeReceived(None)
           }
         }
       }
@@ -149,8 +146,6 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     *  Store latest snapshot on consumed event in memory
     */
   def setCurrentSnapshot(record: Record) {
-    val key = recordKey(record.streamName, record.shardId)
-
     val latestSnapshot =
       Snapshot(
         streamName = record.streamName,
@@ -158,11 +153,9 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
         sequenceNumber = record.sequenceNumber
       )
 
-    latestSnapshotsMap += (key -> Some(latestSnapshot))
+    LocalSnapshotManager(record.streamName, record.shardId).putSnapshot(latestSnapshot)
 
   }
-
-  def recordKey(name: String, shardId: String) = s"$name-$shardId"
 }
 
 object PollActor {

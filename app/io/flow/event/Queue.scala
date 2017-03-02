@@ -158,8 +158,6 @@ case class KinesisStream(
     */
   private[this] val recordLimit = 750
   private[this] var shardIteratorMap = scala.collection.mutable.Map.empty[String, ShardIterator]
-  private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String, String]
-
   private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String, Seq[String]]
 
   setup
@@ -273,8 +271,12 @@ case class KinesisStream(
     val iterator = shardIteratorMap.get(shardId) match {
       case None => {
         sequenceNumberProvider.current(name, shardId) match {
-          case Some(seqNo) =>
-            shardSequenceNumberMap += (shardId -> seqNo)
+          case Some(sequenceNumber) =>
+            // sequence number for stream name/shard retrieved from provider
+            // store it in local memory
+            val snapshot = Snapshot(name, shardId, sequenceNumber)
+            LocalSnapshotManager(name, shardId).putSnapshot(snapshot)
+
             refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
 
           case None => refreshShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
@@ -307,14 +309,14 @@ case class KinesisStream(
           .withShardIteratorType(shardIteratorType)
 
       case ShardIteratorType.AFTER_SEQUENCE_NUMBER =>
-        shardSequenceNumberMap.contains(shardId) match {
-          case false =>
+        LocalSnapshotManager(name, shardId).latestSnapshot match {
+          case None =>
             Logger.info(s"No starting sequence number exists for stream name [$name] and shardId [$shardId].  Defaulting to [ShardIteratorType.TRIM_HORIZON]")
             baseRequest
               .withShardIteratorType(defaultShardIteratorType)
-          case true =>
+          case Some(snapshot) =>
             baseRequest
-              .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+              .withStartingSequenceNumber(snapshot.sequenceNumber)
               .withShardIteratorType(shardIteratorType)
         }
 
@@ -395,7 +397,9 @@ case class KinesisStream(
     val records = result.getRecords
 
     val messages = records.asScala.map { record =>
-      shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
+      // record latest sequence number for stream name/shard in memory
+      LocalSnapshotManager(name, shardId).putSnapshot(Snapshot(name, shardId, record.getSequenceNumber))
+
       val buffer = record.getData
       val bytes = Array.fill[Byte](buffer.remaining)(0)
       buffer.get(bytes)
