@@ -14,8 +14,8 @@ lazy val root = project
   .settings(
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.2.19",
-      "com.amazonaws" % "aws-java-sdk-kinesis" % "1.11.99",
+      "io.flow" %% "lib-play" % "0.2.20",
+      "com.amazonaws" % "aws-java-sdk-kinesis" % "1.11.100",
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
