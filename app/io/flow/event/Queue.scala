@@ -454,7 +454,7 @@ class MockQueue extends Queue {
 
   var mockStreams: scala.collection.mutable.Map[String, MockStream] = scala.collection.mutable.Map[String, MockStream]()
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+  override def stream[T: TypeTag](implicit ec: ExecutionContext): MockStream = {
     val name = typeOf[T].toString
 
     if (!mockStreams.contains(name))
