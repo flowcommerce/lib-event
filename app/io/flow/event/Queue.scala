@@ -12,6 +12,7 @@ import scala.reflect.runtime.universe._
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 import java.nio.ByteBuffer
+import java.util.UUID
 
 import com.amazonaws.ClientConfiguration
 import org.joda.time.DateTime
@@ -20,7 +21,7 @@ import org.joda.time.format.ISODateTimeFormat.dateTimeParser
 import collection.JavaConverters._
 
 trait Queue {
-  def stream[T: TypeTag](implicit ec: ExecutionContext): Stream
+  def stream[T: TypeTag](sequenceNumberProvider: SequenceNumberProvider)(implicit ec: ExecutionContext): Stream
 }
 
 trait Stream {
@@ -30,18 +31,21 @@ trait Stream {
 
 object Record {
 
-  def fromByteArray(arrivalTimestamp: DateTime, value: Array[Byte]): Record = {
-    fromJsValue(arrivalTimestamp, Json.parse(value))
+  def fromByteArray(arrivalTimestamp: DateTime, value: Array[Byte], streamName: String, shardId: String, sequenceNumber: String): Record = {
+    fromJsValue(arrivalTimestamp, Json.parse(value), streamName, shardId, sequenceNumber)
   }
 
-  def fromJsValue(arrivalTimestamp: DateTime, js: JsValue): Record = {
+  def fromJsValue(arrivalTimestamp: DateTime, js: JsValue, streamName: String, shardId: String, sequenceNumber: String): Record = {
     Record(
       eventId = Util.mustParseString(js, "event_id"),
       timestamp = dateTimeParser.parseDateTime(
         Util.mustParseString(js, "timestamp")
       ),
       js = js,
-      arrivalTimestamp = arrivalTimestamp
+      arrivalTimestamp = arrivalTimestamp,
+      streamName = streamName,
+      shardId = shardId,
+      sequenceNumber = sequenceNumber
     )
   }
   
@@ -52,12 +56,18 @@ case class Record(
   eventId: String,
   timestamp: DateTime,
   arrivalTimestamp: DateTime,
+  streamName: String,
+  shardId: String,
+  sequenceNumber: String,
   js: JsValue
 )
 
 case class Message(
   message: String,
-  arrivalTimestamp: DateTime
+  arrivalTimestamp: DateTime,
+  streamName: String,
+  shardId: String,
+  sequenceNumber: String
 )
 
 object QueueConstants {
@@ -98,7 +108,7 @@ class KinesisQueue @javax.inject.Inject() (
 
   var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+  override def stream[T: TypeTag](sequenceNumberProvider: SequenceNumberProvider)(implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
 
     StreamNames(FlowEnvironment.Current).json(name) match {
@@ -114,9 +124,9 @@ class KinesisQueue @javax.inject.Inject() (
       }
       case Some(streamName) => {
         if (!kinesisStreams.contains(streamName))
-          kinesisStreams.put(streamName, KinesisStream(kinesisClient, streamName, numberShards))
+          kinesisStreams.put(streamName, KinesisStream(kinesisClient, streamName, numberShards, sequenceNumberProvider))
 
-        kinesisStreams.getOrElse(streamName, KinesisStream(kinesisClient, streamName, numberShards))
+        kinesisStreams.getOrElse(streamName, KinesisStream(kinesisClient, streamName, numberShards, sequenceNumberProvider))
       }
     }
   }
@@ -126,7 +136,8 @@ class KinesisQueue @javax.inject.Inject() (
 case class KinesisStream(
   kinesisClient: AmazonKinesis,
   name: String,
-  numberShards: Int = 1
+  numberShards: Int = 1,
+  sequenceNumberProvider: SequenceNumberProvider
 ) (
   implicit ec: ExecutionContext
 ) extends Stream {
@@ -147,8 +158,6 @@ case class KinesisStream(
     */
   private[this] val recordLimit = 750
   private[this] var shardIteratorMap = scala.collection.mutable.Map.empty[String, ShardIterator]
-  private[this] var shardSequenceNumberMap = scala.collection.mutable.Map.empty[String, String]
-
   private[this] var streamNameShardIds = scala.collection.mutable.Map.empty[String, Seq[String]]
 
   setup
@@ -187,7 +196,7 @@ case class KinesisStream(
   }
 
   def publish(event: JsValue) {
-    val partitionKey = Random().alphaNumeric(30)
+    val partitionKey = "1"
     val data = Json.stringify(event)
     insertMessage(partitionKey, data)
   }
@@ -261,7 +270,18 @@ case class KinesisStream(
   )(implicit ec: ExecutionContext): String = {
     val iterator = shardIteratorMap.get(shardId) match {
       case None => {
-        refreshShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
+        sequenceNumberProvider.current(name, shardId) match {
+          case Some(sequenceNumber) =>
+            // sequence number for stream name/shard retrieved from provider
+            // store it in local memory
+            val snapshot = Snapshot(name, shardId, sequenceNumber)
+            LocalSnapshotManager(name, shardId).putSnapshot(snapshot)
+
+            refreshShardIterator(shardId, ShardIteratorType.AFTER_SEQUENCE_NUMBER)
+
+          case None =>
+            refreshShardIterator(shardId, ShardIteratorType.TRIM_HORIZON)
+        }
       }
 
       case Some(cachedIterator) => {
@@ -290,14 +310,14 @@ case class KinesisStream(
           .withShardIteratorType(shardIteratorType)
 
       case ShardIteratorType.AFTER_SEQUENCE_NUMBER =>
-        shardSequenceNumberMap.contains(shardId) match {
-          case false =>
+        LocalSnapshotManager(name, shardId).latestSnapshot match {
+          case None =>
             Logger.info(s"No starting sequence number exists for stream name [$name] and shardId [$shardId].  Defaulting to [ShardIteratorType.TRIM_HORIZON]")
             baseRequest
               .withShardIteratorType(defaultShardIteratorType)
-          case true =>
+          case Some(snapshot) =>
             baseRequest
-              .withStartingSequenceNumber(shardSequenceNumberMap(shardId))
+              .withStartingSequenceNumber(snapshot.sequenceNumber)
               .withShardIteratorType(shardIteratorType)
         }
 
@@ -332,7 +352,10 @@ case class KinesisStream(
     results.messages.foreach { msg =>
       val data = Record.fromByteArray(
         arrivalTimestamp = new DateTime(msg.arrivalTimestamp),
-        value = msg.message.getBytes("UTF-8")
+        value = msg.message.getBytes("UTF-8"),
+        streamName = name,
+        shardId = shardId,
+        sequenceNumber = msg.sequenceNumber
       )
 
       f(data)
@@ -375,14 +398,19 @@ case class KinesisStream(
     val records = result.getRecords
 
     val messages = records.asScala.map { record =>
-      shardSequenceNumberMap += (shardId -> record.getSequenceNumber)
+      // record latest sequence number for stream name/shard in memory
+      LocalSnapshotManager(name, shardId).putSnapshot(Snapshot(name, shardId, record.getSequenceNumber))
+
       val buffer = record.getData
       val bytes = Array.fill[Byte](buffer.remaining)(0)
       buffer.get(bytes)
 
       Message(
         message = new String(bytes, "UTF-8"),
-        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp)
+        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+        streamName = name,
+        shardId = shardId,
+        sequenceNumber = record.getSequenceNumber
       )
     }
 
@@ -454,7 +482,7 @@ class MockQueue extends Queue {
 
   var mockStreams: scala.collection.mutable.Map[String, MockStream] = scala.collection.mutable.Map[String, MockStream]()
 
-  override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
+  override def stream[T: TypeTag](sequenceNumberProvider: SequenceNumberProvider)(implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
 
     if (!mockStreams.contains(name))
@@ -484,6 +512,9 @@ class MockStream extends Stream {
 
         val data = Record.fromJsValue(
           arrivalTimestamp = new DateTime(),
+          streamName = new Random().alpha(20),
+          shardId = UUID.randomUUID.toString,
+          sequenceNumber = UUID.randomUUID.toString,
           js = one
         )
         f(data)
