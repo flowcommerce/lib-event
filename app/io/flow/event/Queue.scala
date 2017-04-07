@@ -96,7 +96,7 @@ class KinesisQueue @javax.inject.Inject() (
   private[this] val numberShards = 1
   private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(credentials)).withClientConfiguration(clientConfig).build()
 
-  var kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
+  private[this] val kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
   override def stream[T: TypeTag](implicit ec: ExecutionContext): Stream = {
     val name = typeOf[T].toString
@@ -112,11 +112,13 @@ class KinesisQueue @javax.inject.Inject() (
           }
         }
       }
-      case Some(streamName) => {
-        if (!kinesisStreams.contains(streamName))
-          kinesisStreams.put(streamName, KinesisStream(kinesisClient, streamName, numberShards))
 
-        kinesisStreams.getOrElse(streamName, KinesisStream(kinesisClient, streamName, numberShards))
+      case Some(streamName) => {
+        kinesisStreams.get(streamName).getOrElse {
+          val stream = KinesisStream(kinesisClient, streamName, numberShards)
+          kinesisStreams.put(streamName, stream)
+          stream
+        }
       }
     }
   }
@@ -172,14 +174,13 @@ case class KinesisStream(
 
       case Failure(ex) => {
         ex match {
-          case e: ResourceInUseException => {
+          case _: ResourceInUseException => {
             // do nothing... already exists, ignore
-            Right(())
           }
 
           case e: Throwable => {
+            Logger.warn(s"FlowKinesisError Stream[$name] could not be created calling [io.flow.event.setup]. Error Message: ${e.getMessage}")
             e.printStackTrace(System.err)
-            Left(s"FlowKinesisError Stream[$name] could not be created calling [io.flow.event.setup]. Error Message: ${e.getMessage}")
           }
         }
       }
@@ -338,7 +339,7 @@ case class KinesisStream(
       f(data)
     }
 
-    results.nextShardIterator.map { _ =>
+    results.nextShardIterator.foreach { _ =>
 
       /**
         * For best results, sleep for at least one second (1000 milliseconds) between calls to getRecords to avoid exceeding the limit on getRecords frequency.
@@ -392,9 +393,10 @@ case class KinesisStream(
       */
     shardIteratorMap += (shardId -> ShardIterator(shardIterator = result.getNextShardIterator))
 
-    val nextShardIterator = (millisBehindLatest == 0) match {
-      case true => None
-      case false => Some(result.getNextShardIterator)
+    val nextShardIterator = if (millisBehindLatest == 0) {
+      None
+    } else {
+      Some(result.getNextShardIterator)
     }
 
     KinesisShardMessageSummary(messages, nextShardIterator)
