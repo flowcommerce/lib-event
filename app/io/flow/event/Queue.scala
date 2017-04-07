@@ -94,7 +94,10 @@ class KinesisQueue @javax.inject.Inject() (
       .withConnectionTTL(60000)
 
   private[this] val numberShards = 1
-  private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(credentials)).withClientConfiguration(clientConfig).build()
+  private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().
+    withCredentials(new AWSStaticCredentialsProvider(credentials)).
+    withClientConfiguration(clientConfig).
+    build()
 
   private[this] val kinesisStreams: scala.collection.mutable.Map[String, KinesisStream] = scala.collection.mutable.Map[String, KinesisStream]()
 
