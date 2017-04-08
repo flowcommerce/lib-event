@@ -8,6 +8,7 @@ import io.flow.play.util.Config
 import play.api.libs.json.JsValue
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
 
 trait Queue {
@@ -17,22 +18,20 @@ trait Queue {
     partitionKeyFieldName: String = "event_id"
   ): Producer
 
+  def consume[T: TypeTag](
+    f: Record => Unit,
+    pollTime: FiniteDuration = FiniteDuration(5, "seconds")
+  )(
+    implicit ec: ExecutionContext
+  )
 
-  def consumer[T: TypeTag]: Consumer
+  def shutdown(implicit ec: ExecutionContext)
 
 }
 
 trait Producer {
 
   def publish(event: JsValue)(implicit ec: ExecutionContext)
-
-  def shutdown(implicit ec: ExecutionContext)
-
-}
-
-trait Consumer {
-
-  def consume(f: Record => Unit)
 
   def shutdown(implicit ec: ExecutionContext)
 
@@ -48,6 +47,8 @@ class DefaultQueue @Inject() (
   config: Config
 ) extends Queue {
 
+  private[this] val consumers = scala.collection.mutable.ListBuffer[KinesisConsumer]()
+
   override def producer[T: TypeTag](
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
@@ -59,10 +60,18 @@ class DefaultQueue @Inject() (
     )
   }
 
-  override def consumer[T: TypeTag]: Consumer = {
-    KinesisConsumer(
-      streamConfig[T]
-    )
+  override def consume[T: TypeTag](
+     f: Record => Unit,
+     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
+  )(
+     implicit ec: ExecutionContext
+  ) {
+    consumers.append(KinesisConsumer(streamConfig[T], f))
+  }
+
+  override def shutdown(implicit ec: ExecutionContext): Unit = {
+    consumers.foreach(_.shutdown)
+    consumers.clear()
   }
 
   private[this] def streamName[T: TypeTag]: String = {

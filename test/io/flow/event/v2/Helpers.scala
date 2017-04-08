@@ -43,18 +43,18 @@ trait Helpers {
     eventId
   }
 
-  def consume(consumer: Consumer, eventId: String, timeoutSeconds: Int = 60): Record = {
-    consumeUntil(consumer, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
+  def consume(q: Queue, eventId: String, timeoutSeconds: Int = 60): Record = {
+    consumeUntil(q, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
       sys.error(s"Failed to find eventId[$eventId]")
     }
   }
 
-  def consumeUntil(consumer: Consumer, eventId: String, timeoutSeconds: Int = 60): Seq[Record] = {
+  def consumeUntil(q: Queue, eventId: String, timeoutSeconds: Int = 60): Seq[Record] = {
     var selectedEvent: Option[Record] = None
     val all = scala.collection.mutable.ListBuffer[Record]()
 
     eventuallyInNSeconds(timeoutSeconds) {
-      consumer.consume { rec =>
+      q.consume { rec =>
         all.append(rec)
         if (rec.eventId == eventId) {
           selectedEvent = Some(rec)

@@ -14,43 +14,37 @@ import scala.concurrent.ExecutionContext
 import collection.JavaConverters._
 
 case class KinesisConsumer (
-  config: StreamConfig
-) extends Consumer {
+  config: StreamConfig,
+  f: Record => Unit
+) {
 
   private[this] val kinesisClient = config.kinesisClient
 
-  private[this] val executorServices = scala.collection.mutable.ListBuffer[ExecutorService]()
-  private[this] val workers = scala.collection.mutable.ListBuffer[Worker]()
+  private[this] val workerId = Seq(
+    config.appName,
+    InetAddress.getLocalHost.getCanonicalHostName,
+    UUID.randomUUID.toString
+  ).mkString(":")
 
-  override def consume(f: Record => Unit) {
-    val workerId = Seq(
-      config.appName,
-      InetAddress.getLocalHost.getCanonicalHostName,
-      UUID.randomUUID.toString
-    ).mkString(":")
+  private[this] val worker = new Worker.Builder()
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f))
+    .config(
+      new KinesisClientLibConfiguration(
+        config.appName,
+        config.streamName,
+        config.awSCredentialsProvider,
+        workerId
+      ).withTableName(dynamoTableName)
+        .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+        .withCleanupLeasesUponShardCompletion(true)
+        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
+        .withShardSyncIntervalMillis(5000)
+    ).kinesisClient(kinesisClient)
+    .build()
 
-    val worker = new Worker.Builder()
-      .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f))
-      .config(
-        new KinesisClientLibConfiguration(
-          config.appName,
-          config.streamName,
-          config.awSCredentialsProvider,
-          workerId
-        ).withTableName(dynamoTableName)
-          .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-          .withCleanupLeasesUponShardCompletion(true)
-          .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
-          .withShardSyncIntervalMillis(5000)
-      ).kinesisClient(kinesisClient)
-      .build()
+  private[this] val exec = Executors.newSingleThreadExecutor()
 
-    val exec = Executors.newSingleThreadExecutor()
-
-    workers.append(worker)
-    executorServices.append(exec)
-
-    println(s"Starting worker[$workerId]")
+  println(s"Starting worker[$workerId]")
     /*
     exec.execute(new Runnable {
       override def run(): Unit = {
@@ -59,14 +53,10 @@ case class KinesisConsumer (
     })
     */
     exec.execute(worker)
-  }
 
-  override def shutdown(implicit ec: ExecutionContext): Unit = {
-    workers.foreach { _.shutdown() }
-    workers.clear()
-
-    executorServices.foreach { _.shutdown() }
-    executorServices.clear()
+  def shutdown(implicit ec: ExecutionContext): Unit = {
+    worker.shutdown()
+    exec.shutdown()
   }
 
   private[this] def dynamoTableName: String = {

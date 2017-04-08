@@ -7,24 +7,38 @@ import org.joda.time.DateTime
 import play.api.libs.json.JsValue
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
 
 @Singleton
 class MockQueue @Inject()() extends Queue {
 
-  private[this] val consumers = scala.collection.mutable.Map[String, MockConsumer]()
+  private[this] val streams = scala.collection.mutable.Map[String, MockStream]()
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer = {
     val stream = MockStream()
-    consumers.put(streamName[T], MockConsumer(stream))
+    streams.put(streamName[T], stream)
     MockProducer(stream)
   }
 
-  override def consumer[T: TypeTag]: Consumer = {
-    consumers.get(streamName[T]).getOrElse {
+  override def consume[T: TypeTag](
+    f: Record => Unit,
+    pollTime: FiniteDuration = FiniteDuration(5, "seconds")
+  )(
+    implicit ec: ExecutionContext
+  ) {
+    stream[T].consume().foreach(f)
+  }
+
+  override def shutdown(implicit ec: ExecutionContext): Unit = {
+    streams.clear()
+  }
+
+  def stream[T: TypeTag]: MockStream = {
+    streams.get(streamName[T]).getOrElse {
       sys.error("Mock requires you to create the producer for this stream before consuming")
     }
   }
@@ -88,20 +102,6 @@ case class MockProducer(stream: MockStream) extends Producer {
         js = event
       )
     )
-  }
-
-  def shutdown(implicit ec: ExecutionContext): Unit = {}
-
-}
-
-case class MockConsumer(stream: MockStream) extends Consumer {
-
-  def consume(f: Record => Unit): Unit = {
-    stream.consume().foreach(f)
-  }
-
-  def consumeEventId(eventId: String): Option[Record] = {
-    stream.consumeEventId(eventId)
   }
 
   def shutdown(implicit ec: ExecutionContext): Unit = {}
