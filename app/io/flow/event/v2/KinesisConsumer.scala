@@ -81,11 +81,11 @@ case class KinesisRecordProcessor[T](
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
-    //println(s"initializing stream[${config.streamName}] shard[${input.getShardId}]")
+    //Logger.info(s"initializing stream[${config.streamName}] shard[${input.getShardId}]")
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    //println(s"processRecords  stream[${config.streamName}] starting")
+    //Logger.info(s"processRecords  stream[${config.streamName}] starting")
     val all = input.getRecords.asScala
     all.foreach { record =>
       val buffer = record.getData
@@ -102,13 +102,13 @@ case class KinesisRecordProcessor[T](
     }
 
     all.lastOption.foreach { record =>
-      println(s"input.getCheckpointer.checkpoint(${record.getSequenceNumber})")
+      //Logger.info(s"input.getCheckpointer.checkpoint(${record.getSequenceNumber})")
       input.getCheckpointer.checkpoint(record)
     }
   }
 
   override def shutdown(input: ShutdownInput): Unit = {
-    //println(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
+    //Logger.info(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
   }
 
 }
