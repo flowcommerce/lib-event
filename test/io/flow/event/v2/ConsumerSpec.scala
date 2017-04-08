@@ -12,7 +12,7 @@ class ConsumerSpec extends PlaySpec with OneAppPerSuite {
     f
   }
 
-  "con publish and consume an event" in {
+  "can publish and consume an event" in {
     withConfig {
       println(s"todo")
     }
