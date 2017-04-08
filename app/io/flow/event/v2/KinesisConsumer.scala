@@ -49,16 +49,6 @@ case class KinesisConsumer (
   }
 }
 
-case class StreamConfig(
-  awsCredentials: AWSCredentials,
-  appName: String,
-  streamName: String
-) {
-
-  val aWSCredentialsProvider = new AWSStaticCredentialsProvider(awsCredentials)
-
-}
-
 case class KinesisRecordProcessorFactory(config: StreamConfig, f: Record => Unit) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
