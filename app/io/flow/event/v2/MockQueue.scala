@@ -40,21 +40,30 @@ class MockQueue @Inject()() extends Queue {
 
 case class MockStream() {
 
-  private[this] val pending = scala.collection.mutable.ListBuffer[Record]()
-  private[this] val consumed = scala.collection.mutable.ListBuffer[Record]()
+  private[this] val pendingRecords = scala.collection.mutable.ListBuffer[Record]()
+  private[this] val consumedRecords = scala.collection.mutable.ListBuffer[Record]()
 
   def publish(record: Record): Unit = {
-    pending.append(record)
+    pendingRecords.append(record)
   }
 
   /**
     * Consumes a record, if any
     */
   def consume(): Option[Record] = {
-    pending.headOption.map { r =>
-      pending.remove(0)
-      consumed.append(r)
+    pendingRecords.headOption.map { r =>
+      pendingRecords.remove(0)
+      consumedRecords.append(r)
       r
+    }
+  }
+
+  def consumeEventId(eventId: String): Option[Record] = {
+    pendingRecords.find(_.eventId == eventId).map { rec =>
+      val i = pendingRecords.indexOf(rec)
+      pendingRecords.remove(i)
+      consumedRecords.append(rec)
+      rec
     }
   }
 
@@ -62,8 +71,11 @@ case class MockStream() {
     * Returns all records seen - pending and consumed
     */
   def all: Seq[Record] = {
-    pending ++ consumed
+    pendingRecords ++ consumedRecords
   }
+
+  def pending: Seq[Record] = pendingRecords
+  def consumed: Seq[Record] = consumedRecords
 
 }
 
@@ -86,6 +98,10 @@ case class MockConsumer(stream: MockStream) extends Consumer {
 
   def consume(f: Record => Unit): Unit = {
     stream.consume().foreach(f)
+  }
+
+  def consumeEventId(eventId: String): Option[Record] = {
+    stream.consumeEventId(eventId)
   }
 
   def shutdown(implicit ec: ExecutionContext): Unit = {}
