@@ -9,6 +9,7 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  /*
   "can publish and consume an event" in {
     withConfig { config =>
       val testObject = TestObject(UUID.randomUUID().toString)
@@ -21,10 +22,13 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
       val consumer = q.consumer[TestEvent]
       val fetched = consume(consumer, eventId)
-      println(s"fetched: $fetched")
       fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.id)
+
+      consumer.shutdown
+      producer.shutdown
     }
   }
+*/
 
   "keeps track of sequence number" in {
     withConfig { config =>

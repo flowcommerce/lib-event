@@ -7,7 +7,8 @@ import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder
 case class StreamConfig(
   awsCredentials: AWSCredentials,
   appName: String,
-  streamName: String
+  streamName: String,
+  idleTimeBetweenReadsInMillis: Int = 1000
 ) {
 
   val awSCredentialsProvider: AWSCredentialsProvider = new AWSStaticCredentialsProvider(awsCredentials)

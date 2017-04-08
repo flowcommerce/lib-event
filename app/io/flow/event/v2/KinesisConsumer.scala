@@ -19,7 +19,7 @@ case class KinesisConsumer (
 
   private[this] val kinesisClient = config.kinesisClient
 
-  private[this] val threadPools = scala.collection.mutable.ListBuffer[ExecutorService]()
+  private[this] val executorServices = scala.collection.mutable.ListBuffer[ExecutorService]()
   private[this] val workers = scala.collection.mutable.ListBuffer[Worker]()
 
   override def consume(f: Record => Unit) {
@@ -30,7 +30,7 @@ case class KinesisConsumer (
     ).mkString(":")
 
     val worker = new Worker.Builder()
-      .recordProcessorFactory(KinesisRecordProcessorFactory(config, f))
+      .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f))
       .config(
         new KinesisClientLibConfiguration(
           config.appName,
@@ -39,22 +39,34 @@ case class KinesisConsumer (
           workerId
         ).withTableName(dynamoTableName)
           .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+          .withCleanupLeasesUponShardCompletion(true)
+          .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
+          .withShardSyncIntervalMillis(5000)
       ).kinesisClient(kinesisClient)
       .build()
 
-    Executors.newSingleThreadExecutor().execute(new Runnable {
+    val exec = Executors.newSingleThreadExecutor()
+
+    workers.append(worker)
+    executorServices.append(exec)
+
+    println(s"Starting worker[$workerId]")
+    /*
+    exec.execute(new Runnable {
       override def run(): Unit = {
         worker.run()
       }
     })
+    */
+    exec.execute(worker)
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
     workers.foreach { _.shutdown() }
     workers.clear()
 
-    threadPools.foreach { _.shutdown() }
-    threadPools.clear()
+    executorServices.foreach { _.shutdown() }
+    executorServices.clear()
   }
 
   private[this] def dynamoTableName: String = {
@@ -67,30 +79,40 @@ case class KinesisConsumer (
 
 }
 
-case class KinesisRecordProcessorFactory(config: StreamConfig, f: Record => Unit) extends IRecordProcessorFactory {
+case class KinesisRecordProcessorFactory(
+  config: StreamConfig,
+  workerId: String,
+  f: Record => Unit
+) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config, f: Record => Unit)
+    KinesisRecordProcessor(config, workerId, f: Record => Unit)
   }
 
 }
 
 case class KinesisRecordProcessor[T](
   config: StreamConfig,
+  workerId: String,
   f: Record => Unit
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
-    //Logger.info(s"initializing stream[${config.streamName}] shard[${input.getShardId}]")
+    //Logger.info(s"KinesisRecordProcessor[$workerId] initializing stream[${config.streamName}] shard[${input.getShardId}]")
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    //Logger.info(s"processRecords  stream[${config.streamName}] starting")
+    //Logger.info(s"KinesisRecordProcessor[$workerId] processRecords  stream[${config.streamName}] starting")
     val all = input.getRecords.asScala
     all.foreach { record =>
       val buffer = record.getData
       val bytes = Array.fill[Byte](buffer.remaining)(0)
       buffer.get(bytes)
+
+      println(s"processRecord[$workerId]: " + Record.fromByteArray(
+        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+        value = bytes
+      ))
 
       f(
         Record.fromByteArray(
@@ -102,7 +124,7 @@ case class KinesisRecordProcessor[T](
     }
 
     all.lastOption.foreach { record =>
-      //Logger.info(s"input.getCheckpointer.checkpoint(${record.getSequenceNumber})")
+      //Logger.info(s"KinesisRecordProcessor[$workerId] checkpoint(${record.getSequenceNumber})")
       input.getCheckpointer.checkpoint(record)
     }
   }
