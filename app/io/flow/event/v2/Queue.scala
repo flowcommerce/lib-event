@@ -11,9 +11,9 @@ import scala.reflect.runtime.universe._
 
 trait Queue {
 
-  def producer[T]: Producer
+  def producer[T: TypeTag]: Producer
 
-  def consumer[T](
+  def consumer[T: TypeTag](
     function: Record => Unit
   ): Consumer
 
@@ -21,17 +21,13 @@ trait Queue {
 
 trait Producer {
 
-  def publish(event: JsValue)
+  def publish(event: JsValue)(implicit ec: ExecutionContext)
 
 }
 
 trait Consumer {
 
-  def consume(
-    function: Record => Unit
-  )(
-    implicit ec: ExecutionContext
-  )
+  def consume(implicit ec: ExecutionContext)
 
 }
 
@@ -39,17 +35,17 @@ class DefaultQueue @Inject() (
   config: Config
 ) extends Queue {
 
-  override def producer[T]: Producer = {
-    KinesisProducer(config, streamName)
+  override def producer[T: TypeTag]: Producer = {
+    KinesisProducer(config, streamName[T])
   }
 
-  override def consumer[T](
+  override def consumer[T: TypeTag](
     function: Record => Unit
   ): Consumer = {
     KinesisConsumer(
       KinesisConsumerConfig(
         appName = config.requiredString("name"),
-        streamName = streamName,
+        streamName = streamName[T],
         awsCredentialsProvider = FlowConfigAWSCredentialsProvider(config),
         function = function
       )

@@ -17,11 +17,7 @@ case class KinesisConsumer (
   config: KinesisConsumerConfig
 ) extends Consumer {
 
-  override def consume(
-    function: Record => Unit
-  )(
-    implicit ec: ExecutionContext
-  ) {
+  override def consume(implicit ec: ExecutionContext) {
     val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
 
     val kinesisConfig = new KinesisClientLibConfiguration(

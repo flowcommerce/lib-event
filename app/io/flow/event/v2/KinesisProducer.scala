@@ -10,6 +10,7 @@ import play.api.libs.json.{JsValue, Json}
 import com.amazonaws.services.kinesis.model.{CreateStreamRequest, PutRecordRequest, ResourceInUseException}
 import play.api.Logger
 
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -67,7 +68,7 @@ case class KinesisProducer(
     }
   }
 
-  override def publish(event: JsValue) {
+  override def publish(event: JsValue)(implicit ec: ExecutionContext) {
     val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
     val bytes = Json.stringify(event).getBytes("UTF-8")
 

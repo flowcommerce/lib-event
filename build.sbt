@@ -26,7 +26,8 @@ lazy val root = project
       "flow.artifactoryonline.com",
       System.getenv("ARTIFACTORY_USERNAME"),
       System.getenv("ARTIFACTORY_PASSWORD")
-    )
+    ),
+    javaOptions in Test += "-Dconfig.file=conf/test.conf"
 )
 
 publishTo := {
