@@ -2,22 +2,19 @@ package io.flow.event.v2
 
 import java.net.InetAddress
 import java.util.UUID
-import javax.inject.Inject
 
 import com.amazonaws.auth.AWSCredentialsProvider
-import io.flow.event.{Record, StreamNames}
-import io.flow.play.util.Config
+import io.flow.event.Record
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext
-import scala.reflect.runtime.universe._
 import collection.JavaConverters._
 
-class KinesisConsumer (
-  config: FlowConsumerConfig
+case class KinesisConsumer (
+  config: KinesisConsumerConfig
 ) extends Consumer {
 
   override def consume(
@@ -28,28 +25,28 @@ class KinesisConsumer (
     val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
 
     val kinesisConfig = new KinesisClientLibConfiguration(
-      flowStreamConfig.appName,
-      flowStreamConfig.streamName,
-      flowStreamConfig.awsCredentialsProvider,
+      config.appName,
+      config.streamName,
+      config.awsCredentialsProvider,
       workerId
     ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
 
     new Worker.Builder()
-      .recordProcessorFactory(KinesisRecordProcessorFactory(flowStreamConfig))
+      .recordProcessorFactory(KinesisRecordProcessorFactory(config))
       .config(kinesisConfig)
       .build()
       .run()
   }
 }
 
-case class FlowConsumerConfig(
+case class KinesisConsumerConfig(
   awsCredentialsProvider: AWSCredentialsProvider,
   appName: String,
   streamName: String,
   function: Record => Unit
 )
 
-case class KinesisRecordProcessorFactory(config: FlowConsumerConfig) extends IRecordProcessorFactory {
+case class KinesisRecordProcessorFactory(config: KinesisConsumerConfig) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
     KinesisRecordProcessor(config)
@@ -58,7 +55,7 @@ case class KinesisRecordProcessorFactory(config: FlowConsumerConfig) extends IRe
 }
 
 case class KinesisRecordProcessor[T](
-  config: FlowConsumerConfig
+  config: KinesisConsumerConfig
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
