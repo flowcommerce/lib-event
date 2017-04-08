@@ -3,7 +3,7 @@ package io.flow.event.v2
 import java.net.InetAddress
 import java.util.UUID
 
-import com.amazonaws.auth.AWSCredentialsProvider
+import com.amazonaws.auth.{AWSCredentials, AWSStaticCredentialsProvider}
 import io.flow.event.Record
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
@@ -23,7 +23,7 @@ case class KinesisConsumer (
     val kinesisConfig = new KinesisClientLibConfiguration(
       config.appName,
       config.streamName,
-      config.awsCredentialsProvider,
+      new AWSStaticCredentialsProvider(config.awsCredentials),
       workerId
     ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
 
@@ -36,7 +36,7 @@ case class KinesisConsumer (
 }
 
 case class KinesisConsumerConfig(
-  awsCredentialsProvider: AWSCredentialsProvider,
+  awsCredentials: AWSCredentials,
   appName: String,
   streamName: String,
   function: Record => Unit

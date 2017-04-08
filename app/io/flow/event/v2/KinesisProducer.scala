@@ -3,9 +3,9 @@ package io.flow.event.v2
 import java.nio.ByteBuffer
 
 import com.amazonaws.ClientConfiguration
+import com.amazonaws.auth.{AWSCredentials, AWSStaticCredentialsProvider}
 import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder
 import io.flow.event.Util
-import io.flow.play.util.Config
 import play.api.libs.json.{JsValue, Json}
 import com.amazonaws.services.kinesis.model.{CreateStreamRequest, PutRecordRequest, ResourceInUseException}
 import play.api.Logger
@@ -18,7 +18,7 @@ import scala.util.{Failure, Success, Try}
   *                              as a key in the JSON object published.
   */
 case class KinesisProducer(
-  config: Config,
+  awsCredentials: AWSCredentials,
   streamName: String,
   numberShards: Int = 1,
   partitionKeyFieldName: String = "id"
@@ -31,8 +31,7 @@ case class KinesisProducer(
       .withConnectionTTL(60000)
 
   private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().
-    withCredentials(FlowConfigAWSCredentialsProvider(config)).
-    withClientConfiguration(clientConfig).
+    withCredentials(new AWSStaticCredentialsProvider(awsCredentials)).
     build()
 
   setup()

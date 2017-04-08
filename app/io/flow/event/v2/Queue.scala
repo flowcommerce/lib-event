@@ -2,6 +2,7 @@ package io.flow.event.v2
 
 import javax.inject.Inject
 
+import com.amazonaws.auth.BasicAWSCredentials
 import io.flow.event.{Record, StreamNames}
 import io.flow.play.util.Config
 import play.api.libs.json.JsValue
@@ -31,12 +32,18 @@ trait Consumer {
 
 }
 
+/**
+  * Builds our default producer/consumer. Requires the following config
+  * variables to be set:
+  *   - aws.access.key
+  *   - aws.secret.key
+  */
 class DefaultQueue @Inject() (
   config: Config
 ) extends Queue {
 
   override def producer[T: TypeTag]: Producer = {
-    KinesisProducer(config, streamName[T])
+    KinesisProducer(awsCredentials, streamName[T])
   }
 
   override def consumer[T: TypeTag](
@@ -46,7 +53,7 @@ class DefaultQueue @Inject() (
       KinesisConsumerConfig(
         appName = config.requiredString("name"),
         streamName = streamName[T],
-        awsCredentialsProvider = FlowConfigAWSCredentialsProvider(config),
+        awsCredentials = awsCredentials,
         function = function
       )
     )
@@ -58,4 +65,10 @@ class DefaultQueue @Inject() (
       case Right(name) => name
     }
   }
+
+  private[this] def awsCredentials = new BasicAWSCredentials(
+    config.requiredString("aws.access.key"),
+    config.requiredString("aws.secret.key")
+  )
+
 }
