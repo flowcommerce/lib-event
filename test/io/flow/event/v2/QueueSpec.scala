@@ -1,12 +1,17 @@
 package io.flow.event.v2
 
+import java.util.UUID
+
+import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.play.clients.MockConfig
-import io.flow.play.util.Config
+import io.flow.play.util.{Config, IdGenerator}
 import org.joda.time.DateTime
 import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
 import play.api.libs.json.Json
+import org.scalatest.concurrent.Eventually._
+import org.scalatest.time.{Seconds, Span}
 
 class QueueSpec extends PlaySpec with OneAppPerSuite {
 
@@ -14,37 +19,62 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
 
   private[this] lazy val config = play.api.Play.current.injector.instanceOf[MockConfig]
 
+  private[this] val eventIdGenerator = IdGenerator("evt")
+
+  def eventuallyInNSeconds[T](n: Int)(f: => T): T = {
+    eventually(timeout(Span(n, Seconds))) {
+      f
+    }
+  }
+
   def withConfig[T](f: Config => T): T = {
     config.set("name", "lib-event-test")
     f(config)
   }
 
-  "can publish and consume an event" in {
-    withConfig { config =>
-      val q = new DefaultQueue(config)
-
-      val producer = q.producer[TestEvent]()
-
-      println("Publishing event")
-      producer.publish(
-        Json.toJson(
-          TestObjectUpserted(
-            eventId = "1",
-            timestamp = DateTime.now,
-            testObject = TestObject("obj-1")
-          )
+  def publish(producer: Producer, o: TestObject): String = {
+    val eventId = eventIdGenerator.randomId()
+    producer.publish(
+      Json.toJson(
+        TestObjectUpserted(
+          eventId = eventId,
+          timestamp = DateTime.now,
+          testObject = o
         )
       )
+    )
+    eventId
+  }
 
-      println("Published. Waiting to consume event")
-
-      Thread.sleep(1500)
-      q.consume { js =>
-        println(s"Consumed js: $js")
+  def consume(consumer: Consumer, eventId: String, timeoutSeconds: Int = 30): Record = {
+    eventuallyInNSeconds(timeoutSeconds) {
+      var o: Option[Record] = None
+      consumer.consume { rec =>
+        println(s"rec eventId[${rec.eventId}]")
+        if (rec.eventId == eventId) {
+          println("FOUND MATCH!")
+          o = Some(rec)
+        }
       }
+      println(s"o outside: $o")
+      o.get
+    }
+  }
 
+  "can publish and consume an event" in {
+    withConfig { config =>
+      val testObject = TestObject(UUID.randomUUID().toString)
 
-      println("Published. Done consuming event")
+      val q = new DefaultQueue(config)
+      val producer = q.producer[TestEvent]()
+
+      val eventId = publish(producer, testObject)
+      println(s"Published event[$eventId]")
+
+      val consumer = q.consumer[TestEvent]
+      val fetched = consume(consumer, eventId)
+      println(s"fetched: $fetched")
+      fetched.js.as[TestObject].id must equal(testObject.id)
     }
   }
 

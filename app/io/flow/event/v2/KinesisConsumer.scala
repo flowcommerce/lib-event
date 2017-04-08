@@ -2,9 +2,9 @@ package io.flow.event.v2
 
 import java.net.InetAddress
 import java.util.UUID
+import java.util.concurrent.{ExecutorService, Executors}
 
-import com.amazonaws.auth.{AWSCredentials, AWSStaticCredentialsProvider}
-import io.flow.event.Record
+import io.flow.event.{Naming, Record}
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
@@ -17,36 +17,54 @@ case class KinesisConsumer (
   config: StreamConfig
 ) extends Consumer {
 
-  private[this] val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
+  private[this] val kinesisClient = config.kinesisClient
 
-  private[this] val worker = new Worker.Builder()
-    .recordProcessorFactory(
-      KinesisRecordProcessorFactory(config, { rec => process(rec) })
-    )
-    .config(
-      new KinesisClientLibConfiguration(
-        config.appName,
-        config.streamName,
-        new AWSStaticCredentialsProvider(config.awsCredentials),
-        workerId
-      ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-    )
-    .build()
+  private[this] val threadPools = scala.collection.mutable.ListBuffer[ExecutorService]()
+  private[this] val workers = scala.collection.mutable.ListBuffer[Worker]()
 
-  private[this] def process(record: Record): Unit = {
-    println(s"GOT REC: $record")
+  override def consume(f: Record => Unit) {
+    val workerId = Seq(
+      config.appName,
+      InetAddress.getLocalHost.getCanonicalHostName,
+      UUID.randomUUID.toString
+    ).mkString(":")
+
+    val worker = new Worker.Builder()
+      .recordProcessorFactory(KinesisRecordProcessorFactory(config, f))
+      .config(
+        new KinesisClientLibConfiguration(
+          config.appName,
+          config.streamName,
+          config.awSCredentialsProvider,
+          workerId
+        ).withTableName(dynamoTableName)
+          .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+      ).kinesisClient(kinesisClient)
+      .build()
+
+    Executors.newSingleThreadExecutor().execute(new Runnable {
+      override def run(): Unit = {
+        worker.run()
+      }
+    })
   }
-
-  private[this] var isShutdown: Boolean = false
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
-    worker.shutdown()
-    this.isShutdown = true
+    workers.foreach { _.shutdown() }
+    workers.clear()
+
+    threadPools.foreach { _.shutdown() }
+    threadPools.clear()
   }
 
-  override def consume(f: Record => Unit)(implicit ec: ExecutionContext) {
-    worker.run()
+  private[this] def dynamoTableName: String = {
+    Seq(
+      Naming.envPrefix,
+      "kinesis",
+      config.appName
+    ).mkString(".")
   }
+
 }
 
 case class KinesisRecordProcessorFactory(config: StreamConfig, f: Record => Unit) extends IRecordProcessorFactory {
@@ -63,28 +81,34 @@ case class KinesisRecordProcessor[T](
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
-    println(s"initializing stream[${config.streamName}] shard[${input.getShardId}]")
+    //println(s"initializing stream[${config.streamName}] shard[${input.getShardId}]")
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    println(s"processRecords  stream[${config.streamName}] starting")
-    input.getRecords.asScala.foreach { record =>
+    //println(s"processRecords  stream[${config.streamName}] starting")
+    val all = input.getRecords.asScala
+    all.foreach { record =>
       val buffer = record.getData
       val bytes = Array.fill[Byte](buffer.remaining)(0)
       buffer.get(bytes)
 
-      val flowRecord = Record.fromByteArray(
-        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
-        value = bytes
+      f(
+        Record.fromByteArray(
+          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+          value = bytes
+        )
       )
 
-      println(s"processRecords  stream[${config.streamName}] flowRecord: $flowRecord")
-      f(flowRecord)
+    }
+
+    all.lastOption.foreach { record =>
+      println(s"input.getCheckpointer.checkpoint(${record.getSequenceNumber})")
+      input.getCheckpointer.checkpoint(record)
     }
   }
 
   override def shutdown(input: ShutdownInput): Unit = {
-    println(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
+    //println(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
   }
 
 }

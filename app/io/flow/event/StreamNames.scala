@@ -14,6 +14,21 @@ case class ApidocClass(
 
 }
 
+object Naming {
+
+  /**
+    * Returns either 'production' or 'development_workstation' based on the
+    * flow environment
+    */
+  val envPrefix: String = {
+    FlowEnvironment.Current match {
+      case FlowEnvironment.Production => "production"
+      case FlowEnvironment.Development | FlowEnvironment.Workstation => "development_workstation"
+    }
+  }
+
+}
+
 object StreamNames {
 
   private[this] val ApidocClassRegexp = """^(io\.flow)\.([a-z]+(\.[a-z]+)*)\.v(\d+)\.models\.(\w+)$""".r
@@ -71,17 +86,12 @@ object StreamNames {
 
 case class StreamNames(env: FlowEnvironment) {
 
-  private[this] val streamEnv = env match {
-    case FlowEnvironment.Production => "production"
-    case FlowEnvironment.Development | FlowEnvironment.Workstation => "development_workstation"
-  }
-
   /**
     * Turns a full class name into the name of a kinesis stream
     */
   def json(className: String): Option[String] = {
     StreamNames.parse(className).map { apidoc =>
-      s"$streamEnv.${apidoc.service}.v${apidoc.version}.${apidoc.name}.json"
+      s"${Naming.envPrefix}.${apidoc.service}.v${apidoc.version}.${apidoc.name}.json"
     }
   }
 

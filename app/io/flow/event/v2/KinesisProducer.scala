@@ -18,16 +18,7 @@ case class KinesisProducer(
   partitionKeyFieldName: String
 ) extends Producer {
 
-  private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().
-    withCredentials(config.aWSCredentialsProvider).
-    withClientConfiguration(
-      new ClientConfiguration()
-        .withMaxErrorRetry(5)
-        .withThrottledRetries(true)
-        .withConnectionTTL(60000)
-  
-    ).
-    build()
+  private[this] val kinesisClient = config.kinesisClient
 
   setup()
 

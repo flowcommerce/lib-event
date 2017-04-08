@@ -32,7 +32,7 @@ trait Producer {
 
 trait Consumer {
 
-  def consume(f: Record => Unit)(implicit ec: ExecutionContext)
+  def consume(f: Record => Unit)
 
   def shutdown(implicit ec: ExecutionContext)
 

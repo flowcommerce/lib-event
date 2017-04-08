@@ -12,6 +12,7 @@ lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
   .settings(
+    testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
       "io.flow" %% "lib-play" % "0.3.14",
