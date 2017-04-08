@@ -31,6 +31,8 @@ trait Queue {
 
   def shutdown(implicit ec: ExecutionContext)
 
+  def shutdownConsumers(implicit ec: ExecutionContext)
+
 }
 
 trait Producer {
@@ -78,9 +80,13 @@ class DefaultQueue @Inject() (
     )
   }
 
-  override def shutdown(implicit ec: ExecutionContext): Unit = {
+  def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
     consumers.foreach(_.shutdown)
     consumers.clear()
+  }
+
+  override def shutdown(implicit ec: ExecutionContext): Unit = {
+    shutdownConsumers
   }
 
   private[this] def streamName[T: TypeTag]: String = {

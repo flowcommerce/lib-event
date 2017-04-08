@@ -9,6 +9,7 @@ case class StreamConfig(
   awsCredentials: AWSCredentials,
   appName: String,
   streamName: String,
+  maxRecords: Int = 1000,   // number of records in each fetch
   idleTimeBetweenReadsInMillis: Int = 1000
 ) {
 

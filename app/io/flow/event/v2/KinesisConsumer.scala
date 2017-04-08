@@ -8,6 +8,7 @@ import io.flow.event.{Naming, Record}
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
+import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.play.util.FlowEnvironment
 import org.joda.time.DateTime
 import play.api.Logger
@@ -47,6 +48,8 @@ case class KinesisConsumer (
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
         .withCleanupLeasesUponShardCompletion(true)
         .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
+        .withMaxRecords(config.maxRecords)
+        .withMetricsLevel(MetricsLevel.DETAILED)
         .withFailoverTimeMillis(10000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
     ).kinesisClient(config.kinesisClient)
     .build()
@@ -82,11 +85,11 @@ case class KinesisRecordProcessor[T](
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
-    Logger.info(s"KinesisRecordProcessor[$workerId] initializing stream[${config.streamName}] shard[${input.getShardId}]")
+    Logger.info(s"KinesisRecordProcessor workerId[$workerId] initializing stream[${config.streamName}] shard[${input.getShardId}]")
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    Logger.info(s"KinesisRecordProcessor[$workerId] processRecords  stream[${config.streamName}] starting")
+    Logger.info(s"KinesisRecordProcessor workerId[$workerId] processRecords  stream[${config.streamName}] starting")
     val all = input.getRecords.asScala
     all.foreach { record =>
       val buffer = record.getData
@@ -98,13 +101,12 @@ case class KinesisRecordProcessor[T](
         value = bytes
       )
 
-      Logger.info(s"KinesisRecordProcessor[$workerId] eventId[${rec.eventId}] - CALLING FUNCTION")
+      Logger.info(s"KinesisRecordProcessor workerId[$workerId] eventId[${rec.eventId}]")
       f(rec)
-      Logger.info(s"KinesisRecordProcessor[$workerId] eventId[${rec.eventId}] - DONE")
     }
 
     all.lastOption.foreach { record =>
-      Logger.info(s"KinesisRecordProcessor[$workerId] checkpoint(${record.getSequenceNumber})")
+      Logger.info(s"KinesisRecordProcessor workerId[$workerId] checkpoint(${record.getSequenceNumber})")
       input.getCheckpointer.checkpoint(record)
     }
   }

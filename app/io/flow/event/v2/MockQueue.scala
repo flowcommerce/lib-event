@@ -37,6 +37,11 @@ class MockQueue @Inject()() extends Queue {
     streams.clear()
   }
 
+  override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
+    // no-op
+  }
+
+
   def stream[T: TypeTag]: MockStream = {
     streams.get(streamName[T]).getOrElse {
       sys.error("Mock requires you to create the producer for this stream before consuming")
@@ -62,7 +67,7 @@ case class MockStream() {
   }
 
   /**
-    * Consumes a record, if any
+    * Consumes the next event in the stream, if any
     */
   def consume(): Option[Record] = {
     pendingRecords.headOption.map { r =>
@@ -72,6 +77,10 @@ case class MockStream() {
     }
   }
 
+  /**
+    * Consumes the event w/ the specified id. Returns none if
+    * we have not yet received this event.
+    */
   def consumeEventId(eventId: String): Option[Record] = {
     pendingRecords.find(_.eventId == eventId).map { rec =>
       val i = pendingRecords.indexOf(rec)
