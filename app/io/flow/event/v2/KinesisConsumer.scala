@@ -84,22 +84,18 @@ case class KinesisRecordProcessor[T](
       val bytes = Array.fill[Byte](buffer.remaining)(0)
       buffer.get(bytes)
 
-      println(s"processRecord[$workerId]: " + Record.fromByteArray(
+      val rec = Record.fromByteArray(
         arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
         value = bytes
-      ))
-
-      f(
-        Record.fromByteArray(
-          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
-          value = bytes
-        )
       )
 
+      Logger.info(s"KinesisRecordProcessor[$workerId] eventId[${rec.eventId}] - CALLING FUNCTION")
+      f(rec)
+      Logger.info(s"KinesisRecordProcessor[$workerId] eventId[${rec.eventId}] - DONE")
     }
 
     all.lastOption.foreach { record =>
-      //Logger.info(s"KinesisRecordProcessor[$workerId] checkpoint(${record.getSequenceNumber})")
+      Logger.info(s"KinesisRecordProcessor[$workerId] checkpoint(${record.getSequenceNumber})")
       input.getCheckpointer.checkpoint(record)
     }
   }
