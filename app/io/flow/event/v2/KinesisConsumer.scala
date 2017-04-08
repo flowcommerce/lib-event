@@ -17,26 +17,35 @@ case class KinesisConsumer (
   config: StreamConfig
 ) extends Consumer {
 
-  override def shutdown(implicit ec: ExecutionContext): Unit = {}
+  private[this] val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
+
+  private[this] val worker = new Worker.Builder()
+    .recordProcessorFactory(
+      KinesisRecordProcessorFactory(config, { rec => process(rec) })
+    )
+    .config(
+      new KinesisClientLibConfiguration(
+        config.appName,
+        config.streamName,
+        new AWSStaticCredentialsProvider(config.awsCredentials),
+        workerId
+      ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+    )
+    .build()
+
+  private[this] def process(record: Record): Unit = {
+    println(s"GOT REC: $record")
+  }
+
+  private[this] var isShutdown: Boolean = false
+
+  override def shutdown(implicit ec: ExecutionContext): Unit = {
+    worker.shutdown()
+    this.isShutdown = true
+  }
 
   override def consume(f: Record => Unit)(implicit ec: ExecutionContext) {
-    val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
-
-    val kinesisConfig = new KinesisClientLibConfiguration(
-      config.appName,
-      config.streamName,
-      new AWSStaticCredentialsProvider(config.awsCredentials),
-      workerId
-    ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-
-    println("Worker.run starting")
-    val worker = new Worker.Builder()
-      .recordProcessorFactory(KinesisRecordProcessorFactory(config, f))
-      .config(kinesisConfig)
-      .build()
-
-    ec.execute(worker)
-    println("Worker.run done")
+    worker.run()
   }
 }
 

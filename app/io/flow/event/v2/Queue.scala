@@ -64,7 +64,7 @@ class DefaultQueue @Inject() (
       streamConfig[T]
     )
   }
-  
+
   private[this] def streamName[T: TypeTag]: String = {
     StreamNames.fromType[T] match {
       case Left(errors) => sys.error(errors.mkString(", "))

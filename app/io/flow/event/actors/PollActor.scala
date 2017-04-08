@@ -1,7 +1,8 @@
 package io.flow.event.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.{Queue, MockQueue, Record}
+import io.flow.event.{MockQueue, Record}
+import io.flow.event.v2.Queue
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
@@ -11,7 +12,7 @@ import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Poll Actor periodicaly polls a kinesis stream (by default every 5
+  * Poll Actor periodically polls a kinesis stream (by default every 5
   * seconds), invoking process once per message.
   * 
   * To extend this class:
@@ -53,38 +54,32 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
     this.ec = executionContext
-    this.stream = Some(queue.stream[T])
+    this.consumer = Some(queue.consumer[T])
 
     system.scheduler.schedule(pollTime, pollTime, self, Poll)
   }
 
-  private[this] var stream: Option[io.flow.event.Stream] = None
+  private[this] var consumer: Option[io.flow.event.v2.Consumer] = None
   private[this] case object Poll
 
   def receive = akka.event.LoggingReceive {
 
     case msg @ Poll => withErrorHandler(msg) {
-      stream match {
-        case None => {
-          sys.error(s"[${this.getClass.getName}] Must call start before polling")
-        }
+      consumer.getOrElse {
+        sys.error(s"[${this.getClass.getName}] Must call start before polling")
+      }.consume { record =>
+        Try {
+          process(record)
+        } match {
+          case Success(_) => // no-op
+          case Failure(ex) => {
+            ex.printStackTrace(System.err)
 
-        case Some(s) => {
-          s.consume { record =>
-            Try {
-              process(record)
-            } match {
-              case Success(_) => // no-op
-              case Failure(ex) => {
-                ex.printStackTrace(System.err)
-
-                // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
-                if (PollActor.filterExceptionMessage(ex.getMessage)) {
-                  Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
-                } else {
-                  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
-                }
-              }
+            // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
+            if (PollActor.filterExceptionMessage(ex.getMessage)) {
+              Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+            } else {
+              Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
             }
           }
         }
