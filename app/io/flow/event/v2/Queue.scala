@@ -18,6 +18,10 @@ trait Queue {
     partitionKeyFieldName: String = "event_id"
   ): Producer
 
+  /**
+    * Creates a thread that will poll kinesis on the specified interval,
+    * invoking your provided function for each new record
+    */
   def consume[T: TypeTag](
     f: Record => Unit,
     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
@@ -66,7 +70,12 @@ class DefaultQueue @Inject() (
   )(
      implicit ec: ExecutionContext
   ) {
-    consumers.append(KinesisConsumer(streamConfig[T], f))
+    consumers.append(
+      KinesisConsumer(
+        streamConfig[T],
+        f
+      )
+    )
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {

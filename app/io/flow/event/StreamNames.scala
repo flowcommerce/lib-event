@@ -16,6 +16,14 @@ case class ApidocClass(
 
 object Naming {
 
+  def dynamoKinesisTableName(appName: String): String = {
+    Seq(
+      Naming.envPrefix,
+      "kinesis",
+      appName
+    ).mkString(".")
+  }
+
   /**
     * Returns either 'production' or 'development_workstation' based on the
     * flow environment

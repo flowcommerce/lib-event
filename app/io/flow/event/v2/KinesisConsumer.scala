@@ -9,6 +9,7 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProces
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import org.joda.time.DateTime
+import play.api.Logger
 
 import scala.concurrent.ExecutionContext
 import collection.JavaConverters._
@@ -17,8 +18,6 @@ case class KinesisConsumer (
   config: StreamConfig,
   f: Record => Unit
 ) {
-
-  private[this] val kinesisClient = config.kinesisClient
 
   private[this] val workerId = Seq(
     config.appName,
@@ -34,37 +33,23 @@ case class KinesisConsumer (
         config.streamName,
         config.awSCredentialsProvider,
         workerId
-      ).withTableName(dynamoTableName)
+      ).withTableName(Naming.dynamoKinesisTableName(config.appName))
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
         .withCleanupLeasesUponShardCompletion(true)
         .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
         .withShardSyncIntervalMillis(5000)
-    ).kinesisClient(kinesisClient)
+    ).kinesisClient(config.kinesisClient)
     .build()
 
   private[this] val exec = Executors.newSingleThreadExecutor()
 
-  println(s"Starting worker[$workerId]")
-    /*
-    exec.execute(new Runnable {
-      override def run(): Unit = {
-        worker.run()
-      }
-    })
-    */
-    exec.execute(worker)
+  Logger.info(s"[${this.getClass.getName}] Creating KinesisConsumer for app[${config.appName}] stream[${config.streamName}] workerId[$workerId]")
+
+  exec.execute(worker)
 
   def shutdown(implicit ec: ExecutionContext): Unit = {
     worker.shutdown()
     exec.shutdown()
-  }
-
-  private[this] def dynamoTableName: String = {
-    Seq(
-      Naming.envPrefix,
-      "kinesis",
-      config.appName
-    ).mkString(".")
   }
 
 }

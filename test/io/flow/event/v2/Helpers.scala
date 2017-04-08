@@ -10,6 +10,10 @@ import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
 import play.api.libs.json.Json
 
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.FiniteDuration
+import scala.reflect.runtime.universe._
+
 trait Helpers {
 
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -43,25 +47,30 @@ trait Helpers {
     eventId
   }
 
-  def consume(q: Queue, eventId: String, timeoutSeconds: Int = 60): Record = {
-    consumeUntil(q, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
+  def consume[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 45): Record = {
+    consumeUntil[T](q, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
       sys.error(s"Failed to find eventId[$eventId]")
     }
   }
 
-  def consumeUntil(q: Queue, eventId: String, timeoutSeconds: Int = 60): Seq[Record] = {
-    var selectedEvent: Option[Record] = None
+  def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 45): Seq[Record] = {
     val all = scala.collection.mutable.ListBuffer[Record]()
-
-    eventuallyInNSeconds(timeoutSeconds) {
-      q.consume { rec =>
-        all.append(rec)
-        if (rec.eventId == eventId) {
-          selectedEvent = Some(rec)
-        }
-      }
-      selectedEvent.get
+    println("Calling consume")
+    q.consume[T] { rec =>
+      println(s"record: $rec")
+      all.append(rec)
     }
+
+    Await.result(
+      Future {
+        while (!all.exists(_.eventId == eventId)) {
+          Thread.sleep(100)
+        }
+      },
+      FiniteDuration(timeoutSeconds, "seconds")
+    )
+
+    q.shutdown
 
     all
   }

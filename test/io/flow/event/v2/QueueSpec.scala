@@ -19,13 +19,13 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
       val eventId = publishTestObject(producer, testObject)
       println(s"Published event[$eventId]. Waiting for consumer")
 
-      val fetched = consume(q, eventId)
+      val fetched = consume[TestEvent](q, eventId)
       fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.id)
 
       q.shutdown
     }
   }
-
+/*
   "keeps track of sequence number" in {
     withConfig { config =>
       val testObject1 = TestObject(UUID.randomUUID().toString)
@@ -44,11 +44,11 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
       val testObject3 = TestObject(UUID.randomUUID().toString)
       val eventId3 = publishTestObject(producer, testObject3)
 
-      val all = consumeUntil(q, eventId3)
+      val all = consumeUntil[TestEvent](q, eventId3)
       all.map(_.eventId) must equal(Seq(eventId2, eventId3))
 
       q.shutdown
     }
   }
-
+*/
 }
