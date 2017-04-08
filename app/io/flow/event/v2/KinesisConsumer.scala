@@ -14,10 +14,12 @@ import scala.concurrent.ExecutionContext
 import collection.JavaConverters._
 
 case class KinesisConsumer (
-  config: KinesisConsumerConfig
+  config: StreamConfig
 ) extends Consumer {
 
-  override def consume(implicit ec: ExecutionContext) {
+  override def shutdown(implicit ec: ExecutionContext): Unit = {}
+
+  override def consume(f: Record => Unit)(implicit ec: ExecutionContext) {
     val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
 
     val kinesisConfig = new KinesisClientLibConfiguration(
@@ -28,32 +30,37 @@ case class KinesisConsumer (
     ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
 
     println("Worker.run starting")
-    new Worker.Builder()
-      .recordProcessorFactory(KinesisRecordProcessorFactory(config))
+    val worker = new Worker.Builder()
+      .recordProcessorFactory(KinesisRecordProcessorFactory(config, f))
       .config(kinesisConfig)
       .build()
-      .run()
+
+    ec.execute(worker)
     println("Worker.run done")
   }
 }
 
-case class KinesisConsumerConfig(
+case class StreamConfig(
   awsCredentials: AWSCredentials,
   appName: String,
-  streamName: String,
-  function: Record => Unit
-)
+  streamName: String
+) {
 
-case class KinesisRecordProcessorFactory(config: KinesisConsumerConfig) extends IRecordProcessorFactory {
+  val aWSCredentialsProvider = new AWSStaticCredentialsProvider(awsCredentials)
+
+}
+
+case class KinesisRecordProcessorFactory(config: StreamConfig, f: Record => Unit) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config)
+    KinesisRecordProcessor(config, f: Record => Unit)
   }
 
 }
 
 case class KinesisRecordProcessor[T](
-  config: KinesisConsumerConfig
+  config: StreamConfig,
+  f: Record => Unit
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
@@ -73,7 +80,7 @@ case class KinesisRecordProcessor[T](
       )
 
       println(s"processRecords  stream[${config.streamName}] flowRecord: $flowRecord")
-      config.function(flowRecord)
+      f(flowRecord)
     }
   }
 

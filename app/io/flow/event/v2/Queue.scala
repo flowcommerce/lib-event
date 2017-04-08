@@ -17,9 +17,8 @@ trait Queue {
     partitionKeyFieldName: String = "event_id"
   ): Producer
 
-  def consumer[T: TypeTag](
-    function: Record => Unit
-  ): Consumer
+
+  def consumer[T: TypeTag]: Consumer
 
 }
 
@@ -27,11 +26,15 @@ trait Producer {
 
   def publish(event: JsValue)(implicit ec: ExecutionContext)
 
+  def shutdown(implicit ec: ExecutionContext)
+
 }
 
 trait Consumer {
 
-  def consume(implicit ec: ExecutionContext)
+  def consume(f: Record => Unit)(implicit ec: ExecutionContext)
+
+  def shutdown(implicit ec: ExecutionContext)
 
 }
 
@@ -50,23 +53,15 @@ class DefaultQueue @Inject() (
     partitionKeyFieldName: String = "event_id"
   ): Producer = {
     KinesisProducer(
-      awsCredentials,
-      streamName = streamName[T],
-      numberShards = numberShards,
-      partitionKeyFieldName = partitionKeyFieldName
+      streamConfig[T],
+      numberShards,
+      partitionKeyFieldName
     )
   }
 
-  override def consumer[T: TypeTag](
-    function: Record => Unit
-  ): Consumer = {
+  override def consumer[T: TypeTag]: Consumer = {
     KinesisConsumer(
-      KinesisConsumerConfig(
-        appName = config.requiredString("name"),
-        streamName = streamName[T],
-        awsCredentials = awsCredentials,
-        function = function
-      )
+      streamConfig[T]
     )
   }
   
@@ -82,4 +77,11 @@ class DefaultQueue @Inject() (
     config.requiredString("aws.secret.key")
   )
 
+  private[this] def streamConfig[T: TypeTag] = {
+    StreamConfig(
+      awsCredentials,
+      appName = config.requiredString("name"),
+      streamName = streamName[T]
+    )
+  }
 }

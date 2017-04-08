@@ -3,7 +3,6 @@ package io.flow.event.v2
 import java.nio.ByteBuffer
 
 import com.amazonaws.ClientConfiguration
-import com.amazonaws.auth.{AWSCredentials, AWSStaticCredentialsProvider}
 import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder
 import io.flow.event.Util
 import play.api.libs.json.{JsValue, Json}
@@ -13,28 +12,41 @@ import play.api.Logger
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
-/**
-  * @param partitionKeyFieldName The partition key field name must exist
-  *                              as a key in the JSON object published.
-  */
 case class KinesisProducer(
-  awsCredentials: AWSCredentials,
-  streamName: String,
-  numberShards: Int = 1,
-  partitionKeyFieldName: String = "event_id"
+  config: StreamConfig,
+  numberShards: Int,
+  partitionKeyFieldName: String
 ) extends Producer {
 
-  private[this] val clientConfig =
-    new ClientConfiguration()
-      .withMaxErrorRetry(5)
-      .withThrottledRetries(true)
-      .withConnectionTTL(60000)
-
   private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().
-    withCredentials(new AWSStaticCredentialsProvider(awsCredentials)).
+    withCredentials(config.aWSCredentialsProvider).
+    withClientConfiguration(
+      new ClientConfiguration()
+        .withMaxErrorRetry(5)
+        .withThrottledRetries(true)
+        .withConnectionTTL(60000)
+  
+    ).
     build()
 
   setup()
+
+  override def publish(event: JsValue)(implicit ec: ExecutionContext) {
+    val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
+    val bytes = Json.stringify(event).getBytes("UTF-8")
+
+    kinesisClient.putRecord(
+      new PutRecordRequest()
+        .withData(ByteBuffer.wrap(bytes))
+        .withPartitionKey(partitionKey)
+        .withStreamName(config.streamName)
+    )
+  }
+
+  override def shutdown(implicit ec: ExecutionContext): Unit = {
+    kinesisClient.shutdown()
+  }
+
 
   /**
     * Sets up the stream name in ec2, either an error or Unit
@@ -43,7 +55,7 @@ case class KinesisProducer(
     Try {
       kinesisClient.createStream(
         new CreateStreamRequest()
-          .withStreamName(streamName)
+          .withStreamName(config.streamName)
           .withShardCount(numberShards)
       )
     } match {
@@ -58,24 +70,13 @@ case class KinesisProducer(
           }
 
           case e: Throwable => {
-            Logger.warn(s"FlowKinesisError [${this.getClass.getName}] Stream[$streamName] could not be created. Error Message: ${e.getMessage}")
+            val msg = s"FlowKinesisError [${this.getClass.getName}] Stream[$config.streamName] could not be created. Error Message: ${e.getMessage}"
+            Logger.warn(msg)
             e.printStackTrace(System.err)
-            sys.error(s"FlowKinesisError [${this.getClass.getName}] Stream[$streamName] could not be created. Error Message: ${e.getMessage}")
+            sys.error(msg)
           }
         }
       }
     }
-  }
-
-  override def publish(event: JsValue)(implicit ec: ExecutionContext) {
-    val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
-    val bytes = Json.stringify(event).getBytes("UTF-8")
-
-    kinesisClient.putRecord(
-      new PutRecordRequest()
-        .withData(ByteBuffer.wrap(bytes))
-        .withPartitionKey(partitionKey)
-        .withStreamName(streamName)
-    )
   }
 }

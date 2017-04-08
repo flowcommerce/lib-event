@@ -23,7 +23,8 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
     withConfig { config =>
       val q = new DefaultQueue(config)
 
-      val producer = q.producer[TestEvent]
+      val producer = q.producer[TestEvent]()
+      println("Publishing event")
       producer.publish(
         Json.toJson(
           TestObjectUpserted(
@@ -34,11 +35,13 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
         )
       )
 
-      q.consumer[TestEvent] { js =>
-        println(s"Consumed js: $js")
-      }.consume
+      println("Published. Waiting to consume event")
 
-      Thread.sleep(5000)
+      q.consumer[TestEvent].consume { js =>
+        println(s"Consumed js: $js")
+      }
+
+      Thread.sleep(2500)
     }
   }
 
