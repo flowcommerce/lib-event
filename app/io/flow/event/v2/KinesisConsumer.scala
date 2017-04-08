@@ -27,11 +27,13 @@ case class KinesisConsumer (
       workerId
     ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
 
+    println("Worker.run starting")
     new Worker.Builder()
       .recordProcessorFactory(KinesisRecordProcessorFactory(config))
       .config(kinesisConfig)
       .build()
       .run()
+    println("Worker.run done")
   }
 }
 
@@ -59,7 +61,7 @@ case class KinesisRecordProcessor[T](
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    println("processRecords  stream[${config.streamName}] starting")
+    println(s"processRecords  stream[${config.streamName}] starting")
     input.getRecords.asScala.foreach { record =>
       val buffer = record.getData
       val bytes = Array.fill[Byte](buffer.remaining)(0)
@@ -70,7 +72,7 @@ case class KinesisRecordProcessor[T](
         value = bytes
       )
 
-      println("processRecords  stream[${config.streamName}] flowRecord: $flowRecord")
+      println(s"processRecords  stream[${config.streamName}] flowRecord: $flowRecord")
       config.function(flowRecord)
     }
   }

@@ -36,7 +36,7 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
 
       q.consumer[TestEvent] { js =>
         println(s"Consumed js: $js")
-      }
+      }.consume
 
       Thread.sleep(5000)
     }

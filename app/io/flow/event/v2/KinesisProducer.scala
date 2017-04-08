@@ -21,7 +21,7 @@ case class KinesisProducer(
   awsCredentials: AWSCredentials,
   streamName: String,
   numberShards: Int = 1,
-  partitionKeyFieldName: String = "id"
+  partitionKeyFieldName: String = "event_id"
 ) extends Producer {
 
   private[this] val clientConfig =

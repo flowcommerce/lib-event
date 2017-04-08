@@ -12,7 +12,10 @@ import scala.reflect.runtime.universe._
 
 trait Queue {
 
-  def producer[T: TypeTag]: Producer
+  def producer[T: TypeTag](
+    numberShards: Int = 1,
+    partitionKeyFieldName: String = "event_id"
+  ): Producer
 
   def consumer[T: TypeTag](
     function: Record => Unit
@@ -42,8 +45,16 @@ class DefaultQueue @Inject() (
   config: Config
 ) extends Queue {
 
-  override def producer[T: TypeTag]: Producer = {
-    KinesisProducer(awsCredentials, streamName[T])
+  override def producer[T: TypeTag](
+    numberShards: Int = 1,
+    partitionKeyFieldName: String = "event_id"
+  ): Producer = {
+    KinesisProducer(
+      awsCredentials,
+      streamName = streamName[T],
+      numberShards = numberShards,
+      partitionKeyFieldName = partitionKeyFieldName
+    )
   }
 
   override def consumer[T: TypeTag](
