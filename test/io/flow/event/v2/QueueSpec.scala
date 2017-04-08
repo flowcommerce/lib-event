@@ -24,7 +24,6 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
       val q = new DefaultQueue(config)
 
       val producer = q.producer[TestEvent]()
-      val consumer = q.consumer[TestEvent]
 
       println("Publishing event")
       producer.publish(
@@ -40,22 +39,11 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
       println("Published. Waiting to consume event")
 
       Thread.sleep(1500)
-      consumer.consume { js =>
+      q.consume { js =>
         println(s"Consumed js: $js")
       }
 
-      Thread.sleep(1500)
-      consumer.consume { js =>
-        println(s"Consumed js: $js")
-      }
 
-      Thread.sleep(1500)
-      consumer.consume { js =>
-        println(s"Consumed js: $js")
-      }
-
-      producer.shutdown
-      consumer.shutdown
       println("Published. Done consuming event")
     }
   }
