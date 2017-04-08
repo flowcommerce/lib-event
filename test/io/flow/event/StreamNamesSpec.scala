@@ -34,6 +34,12 @@ class StreamNamesSpec extends PlaySpec with OneAppPerSuite {
     dev.json("io.flow.sample.v0.Event") must be(None)
   }
 
+  "fromType" in {
+    StreamNames.fromType must be(
+      Left(Seq("TODO"))
+    )
+  }
+
   "parse" in {
     StreamNames.parse("io.flow.organization.event.v0.models.OrganizationEvent") must equal(
       Some(
