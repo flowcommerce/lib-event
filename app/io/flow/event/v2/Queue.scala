@@ -11,9 +11,11 @@ import play.api.libs.json.JsValue
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
+import org.joda.time.DateTime
 
 import scala.concurrent.ExecutionContext
 import scala.reflect.runtime.universe._
+import collection.JavaConverters._
 
 trait Queue {
 
@@ -47,8 +49,8 @@ class KinesisConsumer @Inject() (
       case Right(name) => name
     }
 
-    KinesisStreamProcessor(
-      StreamConfig(
+    KinesisRecordProcessor(
+      FlowStreamConfig(
         awsCredentialsProvider = FlowConfigAWSCredentialsProvider(config),
         appName = config.requiredString("name"),
         streamName = streamName
@@ -57,7 +59,7 @@ class KinesisConsumer @Inject() (
   }
 }
 
-case class StreamConfig(
+case class FlowStreamConfig(
   awsCredentialsProvider: AWSCredentialsProvider,
   appName: String,
   streamName: String
@@ -78,30 +80,40 @@ case class FlowConfigAWSCredentialsProvider(config: Config) extends AWSCredentia
 
 }
 
-case class KinesisRecordProcessorFactory(config: StreamConfig) extends IRecordProcessorFactory {
+case class KinesisRecordProcessorFactory(config: FlowStreamConfig) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisStreamProcessor(config)
+    KinesisRecordProcessor(config)
   }
 
 }
 
-case class KinesisStreamProcessor(config: StreamConfig) extends Consumer with IRecordProcessor {
-
-  def consume(f: Record => Unit)(implicit ec: ExecutionContext) = {
-    sys.error("TODO")     
-  }
+case class KinesisRecordProcessor[T](
+  config: FlowStreamConfig
+) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
-    println("initialize")
+    println(s"initializing stream[${config.streamName}] shard[${input.getShardId}]")
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    println("processRecords")
+    println("processRecords  stream[${config.streamName}] starting")
+    input.getRecords.asScala.foreach { record =>
+      val buffer = record.getData
+      val bytes = Array.fill[Byte](buffer.remaining)(0)
+      buffer.get(bytes)
+
+      val flowRecord = Record.fromByteArray(
+        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+        value = bytes
+      )
+
+      println("processRecords  stream[${config.streamName}] flowRecord: $flowRecord")
+    }
   }
 
-  override def shutdown(shutdownInput: ShutdownInput): Unit = {
-    println("shutdown")
+  override def shutdown(input: ShutdownInput): Unit = {
+    println(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
   }
 
   private[this] val workerId: String = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
