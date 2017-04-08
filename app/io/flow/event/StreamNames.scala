@@ -53,7 +53,7 @@ object StreamNames {
     StreamNames(FlowEnvironment.Current).json(name) match {
       case None => {
         name match {
-          case "Any" => {
+          case "Any" | "Nothing" => {
             Left(Seq(s"FlowKinesisError Stream[$name] In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.unions.SomeEvent"))
           }
           case _ => {

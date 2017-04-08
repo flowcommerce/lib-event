@@ -7,3 +7,11 @@ Events publishing and receiving lib
 
   go run release.go
 
+
+## Testing
+
+```
+apidoc upload flow lib-event-test ./lib-event-test.json --version 0.0.1
+apidoc update
+sbt test
+```

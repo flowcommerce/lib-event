@@ -46,7 +46,7 @@ class KinesisConsumer @Inject() (
       case Right(name) => name
     }
 
-    val flowStreamConfig = FlowStreamConfig(
+    val flowStreamConfig = FlowConsumerConfig(
       appName = config.requiredString("name"),
       streamName = streamName,
       awsCredentialsProvider = FlowConfigAWSCredentialsProvider(config),
@@ -70,7 +70,7 @@ class KinesisConsumer @Inject() (
   }
 }
 
-case class FlowStreamConfig(
+case class FlowConsumerConfig(
   awsCredentialsProvider: AWSCredentialsProvider,
   appName: String,
   streamName: String,
@@ -92,7 +92,7 @@ case class FlowConfigAWSCredentialsProvider(config: Config) extends AWSCredentia
 
 }
 
-case class KinesisRecordProcessorFactory(config: FlowStreamConfig) extends IRecordProcessorFactory {
+case class KinesisRecordProcessorFactory(config: FlowConsumerConfig) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
     KinesisRecordProcessor(config)
@@ -101,7 +101,7 @@ case class KinesisRecordProcessorFactory(config: FlowStreamConfig) extends IReco
 }
 
 case class KinesisRecordProcessor[T](
-  config: FlowStreamConfig
+  config: FlowConsumerConfig
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
@@ -130,15 +130,3 @@ case class KinesisRecordProcessor[T](
   }
 
 }
-
-/*
-  private[this] val numberShards = 1
-  private[this] val kinesisClient = AmazonKinesisClientBuilder.standard().
-    withCredentials(new AWSStaticCredentialsProvider(credentials)).
-    withClientConfiguration(clientConfig).
-    build()
-
-
-  println("Using workerId: " + workerId)
-}
-*/
