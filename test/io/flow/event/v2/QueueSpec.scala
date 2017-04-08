@@ -47,17 +47,14 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
   }
 
   def consume(consumer: Consumer, eventId: String, timeoutSeconds: Int = 30): Record = {
+    var selectedEvent: Option[Record] = None
     eventuallyInNSeconds(timeoutSeconds) {
-      var o: Option[Record] = None
       consumer.consume { rec =>
-        println(s"rec eventId[${rec.eventId}]")
         if (rec.eventId == eventId) {
-          println("FOUND MATCH!")
-          o = Some(rec)
+          selectedEvent = Some(rec)
         }
       }
-      println(s"o outside: $o")
-      o.get
+      selectedEvent.get
     }
   }
 
@@ -74,7 +71,7 @@ class QueueSpec extends PlaySpec with OneAppPerSuite {
       val consumer = q.consumer[TestEvent]
       val fetched = consume(consumer, eventId)
       println(s"fetched: $fetched")
-      fetched.js.as[TestObject].id must equal(testObject.id)
+      fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.id)
     }
   }
 
