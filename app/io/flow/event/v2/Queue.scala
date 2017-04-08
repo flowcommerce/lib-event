@@ -19,18 +19,15 @@ import collection.JavaConverters._
 
 trait Queue {
 
-  def consumer[T: TypeTag](
-    appName: String
+  def consume[T: TypeTag](
+    function: Record => Unit
   )(
     implicit ec: ExecutionContext
-  ): Consumer
+  )
 
 }
 
-trait Consumer {
-  def consume(f: Record => Unit)(implicit ec: ExecutionContext)
-}
-
+//TODO:
 trait Publisher {
   def publish(event: JsValue)
 }
@@ -39,30 +36,45 @@ class KinesisConsumer @Inject() (
   config: Config
 ) extends Queue {
 
-  override def consumer[T: TypeTag](
-    appName: String
+  override def consume[T: TypeTag](
+    function: Record => Unit
   )(
     implicit ec: ExecutionContext
-  ): Consumer = {
+  ) {
     val streamName = StreamNames.fromType[T] match {
       case Left(errors) => sys.error(errors.mkString(", "))
       case Right(name) => name
     }
 
-    KinesisRecordProcessor(
-      FlowStreamConfig(
-        awsCredentialsProvider = FlowConfigAWSCredentialsProvider(config),
-        appName = config.requiredString("name"),
-        streamName = streamName
-      )
+    val flowStreamConfig = FlowStreamConfig(
+      appName = config.requiredString("name"),
+      streamName = streamName,
+      awsCredentialsProvider = FlowConfigAWSCredentialsProvider(config),
+      function = function
     )
+
+    val workerId = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
+
+    val kinesisConfig = new KinesisClientLibConfiguration(
+      flowStreamConfig.appName,
+      flowStreamConfig.streamName,
+      flowStreamConfig.awsCredentialsProvider,
+      workerId
+    ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+
+    new Worker.Builder()
+      .recordProcessorFactory(KinesisRecordProcessorFactory(flowStreamConfig))
+      .config(kinesisConfig)
+      .build()
+      .run()
   }
 }
 
 case class FlowStreamConfig(
   awsCredentialsProvider: AWSCredentialsProvider,
   appName: String,
-  streamName: String
+  streamName: String,
+  function: Record => Unit
 )
 
 case class FlowConfigAWSCredentialsProvider(config: Config) extends AWSCredentialsProvider {
@@ -109,27 +121,13 @@ case class KinesisRecordProcessor[T](
       )
 
       println("processRecords  stream[${config.streamName}] flowRecord: $flowRecord")
+      config.function(flowRecord)
     }
   }
 
   override def shutdown(input: ShutdownInput): Unit = {
     println(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
   }
-
-  private[this] val workerId: String = InetAddress.getLocalHost.getCanonicalHostName + ":" + UUID.randomUUID
-
-  private[this] val kinesisConfig = new KinesisClientLibConfiguration(
-    config.appName,
-    config.streamName,
-    config.awsCredentialsProvider,
-    workerId
-  ).withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-
-  private[this] val recordProcessorFactory = KinesisRecordProcessorFactory(config)
-  private[this] val worker = new Worker.Builder()
-    .recordProcessorFactory(KinesisRecordProcessorFactory(config))
-    .config(kinesisConfig)
-    .build()
 
 }
 
