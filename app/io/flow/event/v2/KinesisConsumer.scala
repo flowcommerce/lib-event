@@ -8,6 +8,7 @@ import io.flow.event.{Naming, Record}
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
+import io.flow.play.util.FlowEnvironment
 import org.joda.time.DateTime
 import play.api.Logger
 
@@ -25,6 +26,13 @@ case class KinesisConsumer (
     UUID.randomUUID.toString
   ).mkString(":")
 
+  private[this] val dynamoCapacity = {
+    FlowEnvironment.Current match {
+      case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
+      case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
+    }
+  }
+
   private[this] val worker = new Worker.Builder()
     .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f))
     .config(
@@ -33,11 +41,13 @@ case class KinesisConsumer (
         config.streamName,
         config.awSCredentialsProvider,
         workerId
-      ).withTableName(Naming.dynamoKinesisTableName(config.appName))
+      ).withTableName(config.dynamoTableName)
+        .withInitialLeaseTableReadCapacity(dynamoCapacity)
+        .withInitialLeaseTableWriteCapacity(dynamoCapacity)
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
         .withCleanupLeasesUponShardCompletion(true)
         .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
-        .withShardSyncIntervalMillis(5000)
+        .withFailoverTimeMillis(10000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
     ).kinesisClient(config.kinesisClient)
     .build()
 
@@ -48,7 +58,6 @@ case class KinesisConsumer (
   exec.execute(worker)
 
   def shutdown(implicit ec: ExecutionContext): Unit = {
-    worker.shutdown()
     exec.shutdown()
   }
 
@@ -73,11 +82,11 @@ case class KinesisRecordProcessor[T](
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
-    //Logger.info(s"KinesisRecordProcessor[$workerId] initializing stream[${config.streamName}] shard[${input.getShardId}]")
+    Logger.info(s"KinesisRecordProcessor[$workerId] initializing stream[${config.streamName}] shard[${input.getShardId}]")
   }
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    //Logger.info(s"KinesisRecordProcessor[$workerId] processRecords  stream[${config.streamName}] starting")
+    Logger.info(s"KinesisRecordProcessor[$workerId] processRecords  stream[${config.streamName}] starting")
     val all = input.getRecords.asScala
     all.foreach { record =>
       val buffer = record.getData
@@ -101,7 +110,7 @@ case class KinesisRecordProcessor[T](
   }
 
   override def shutdown(input: ShutdownInput): Unit = {
-    //Logger.info(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
+    Logger.info(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
   }
 
 }

@@ -8,7 +8,7 @@ import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
 class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
   import scala.concurrent.ExecutionContext.Implicits.global
-/*
+
   "can publish and consume an event" in {
     withConfig { config =>
       val testObject = TestObject(UUID.randomUUID().toString)
@@ -25,7 +25,7 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
       q.shutdown
     }
   }
-*/
+
   "keeps track of sequence number" in {
     withConfig { config =>
       val testObject1 = TestObject(UUID.randomUUID().toString)
@@ -38,18 +38,15 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
       consume[TestEvent](q, eventId1)
 
-      // Let checkpoint succeed
-      Thread.sleep(1000)
-
       // Now create a second consumer and verify it does not see testObject1
       val testObject2 = TestObject(UUID.randomUUID().toString)
       val eventId2 = publishTestObject(producer, testObject2)
       val testObject3 = TestObject(UUID.randomUUID().toString)
       val eventId3 = publishTestObject(producer, testObject3)
 
-      println(s"Waiting for eventId3[${eventId3}]")
+      println(s"Waiting for eventId3[$eventId3]")
       val all = consumeUntil[TestEvent](q, eventId3)
-      println(s"FOUND eventId3[${eventId3}]: number records[${all.size}]")
+      println(s"FOUND eventId3[$eventId3]: number records[${all.size}]")
       all.map(_.eventId) must equal(Seq(eventId2, eventId3))
 
       q.shutdown

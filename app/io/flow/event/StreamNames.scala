@@ -16,10 +16,10 @@ case class ApidocClass(
 
 object Naming {
 
-  def dynamoKinesisTableName(appName: String): String = {
+  def dynamoKinesisTableName(streamName: String, appName: String): String = {
     Seq(
-      Naming.envPrefix,
       "kinesis",
+      streamName,
       appName
     ).mkString(".")
   }
@@ -28,8 +28,8 @@ object Naming {
     * Returns either 'production' or 'development_workstation' based on the
     * flow environment
     */
-  val envPrefix: String = {
-    FlowEnvironment.Current match {
+  def envPrefix(env: FlowEnvironment = FlowEnvironment.Current): String = {
+    env match {
       case FlowEnvironment.Production => "production"
       case FlowEnvironment.Development | FlowEnvironment.Workstation => "development_workstation"
     }
@@ -99,7 +99,7 @@ case class StreamNames(env: FlowEnvironment) {
     */
   def json(className: String): Option[String] = {
     StreamNames.parse(className).map { apidoc =>
-      s"${Naming.envPrefix}.${apidoc.service}.v${apidoc.version}.${apidoc.name}.json"
+      s"${Naming.envPrefix(env)}.${apidoc.service}.v${apidoc.version}.${apidoc.name}.json"
     }
   }
 

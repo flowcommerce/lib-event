@@ -3,6 +3,7 @@ package io.flow.event.v2
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.{AWSCredentials, AWSCredentialsProvider, AWSStaticCredentialsProvider}
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
+import io.flow.event.Naming
 
 case class StreamConfig(
   awsCredentials: AWSCredentials,
@@ -23,6 +24,13 @@ case class StreamConfig(
           .withConnectionTTL(60000)
       ).
       build()
+  }
+
+  def dynamoTableName: String = {
+    Naming.dynamoKinesisTableName(
+      streamName = streamName,
+      appName = appName
+    )
   }
 
 }

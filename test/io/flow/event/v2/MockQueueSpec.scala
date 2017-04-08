@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
 import io.flow.event.Record
-import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
+import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
 
 class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
@@ -12,16 +12,16 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
   "all" in {
     val q = new MockQueue()
-    val producer = q.producer[TestObjectUpserted]()
-    val stream = q.stream[TestObjectUpserted]
+    val producer = q.producer[TestEvent]()
+    val stream = q.stream[TestEvent]
 
-    q.consume { _ =>
+    q.consume[TestEvent] { _ =>
       sys.error("Queue should be empty")
     }
 
     val eventId = publishTestObject(producer, testObject)
     var rec: Option[Record] = None
-    q.consume { r =>
+    q.consume[TestEvent] { r =>
       rec = Some(r)
     }
     rec.get.eventId must equal(eventId)
@@ -33,10 +33,10 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
   "consumeEventId" in {
     val q = new MockQueue()
-    val producer = q.producer[TestObjectUpserted]()
+    val producer = q.producer[TestEvent]()
 
     val eventId = publishTestObject(producer, testObject)
-    q.stream[TestObjectUpserted].consumeEventId(eventId).get.eventId must equal(eventId)
+    q.stream[TestEvent].consumeEventId(eventId).get.eventId must equal(eventId)
   }
 
 }
