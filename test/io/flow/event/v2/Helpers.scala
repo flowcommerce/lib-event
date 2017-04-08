@@ -55,9 +55,9 @@ trait Helpers {
 
   def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 35): Seq[Record] = {
     val all = scala.collection.mutable.ListBuffer[Record]()
-    println(s"  --> consumeUntil for eventId[$eventId]")
+    // println(s"  --> consumeUntil for eventId[$eventId]")
     q.consume[T] { rec =>
-      println(s"  --> record eventId[${rec.eventId}]")
+      // println(s"  --> record eventId[${rec.eventId}]")
       all.append(rec)
     }
 
