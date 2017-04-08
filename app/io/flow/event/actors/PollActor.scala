@@ -33,7 +33,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   private[this] def defaultDuration = {
     queue match {
-      case q:  MockQueue => FiniteDuration(10, MILLISECONDS)
+      case _:  MockQueue => FiniteDuration(10, MILLISECONDS)
       case _ => FiniteDuration(5, SECONDS)
     }
   }
@@ -66,7 +66,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     case msg @ Poll => withErrorHandler(msg) {
       stream match {
         case None => {
-          sys.error("Must call start before polling")
+          sys.error(s"[${this.getClass.getName}] Must call start before polling")
         }
 
         case Some(s) => {
@@ -78,10 +78,11 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
 
-                // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
-                PollActor.filterExceptionMessage(ex.getMessage) match {
-                  case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
-                  case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+                // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
+                if (PollActor.filterExceptionMessage(ex.getMessage)) {
+                  Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+                } else {
+                  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
                 }
               }
             }
