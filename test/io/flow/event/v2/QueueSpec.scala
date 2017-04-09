@@ -9,6 +9,7 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
+  /* Disable in travis - dont' want to share credentials there
   "can publish and consume an event" in {
     withConfig { config =>
       val testObject = TestObject(UUID.randomUUID().toString)
@@ -25,8 +26,9 @@ class QueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
       q.shutdown
     }
   }
+   */
 
-/*
+  /*
 TODO: Figure out how to run this test - the worker is not shutting down in time to test new stream
   "keeps track of sequence number" in {
     withConfig { config =>
