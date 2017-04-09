@@ -12,10 +12,11 @@ lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
   .settings(
+    testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
       "io.flow" %% "lib-play" % "0.3.14",
-      "com.amazonaws" % "aws-java-sdk-kinesis" % "1.11.115",
+      "com.amazonaws" % "amazon-kinesis-client" % "1.7.4",
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
@@ -26,7 +27,8 @@ lazy val root = project
       "flow.artifactoryonline.com",
       System.getenv("ARTIFACTORY_USERNAME"),
       System.getenv("ARTIFACTORY_PASSWORD")
-    )
+    ),
+    javaOptions in Test += "-Dconfig.file=conf/test.conf"
 )
 
 publishTo := {
@@ -37,4 +39,4 @@ publishTo := {
     Some("Artifactory Realm" at s"$host/libs-release-local")
   }
 }
-version := "0.1.90"
+version := "0.1.96"

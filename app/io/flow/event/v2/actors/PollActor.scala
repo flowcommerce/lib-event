@@ -1,7 +1,8 @@
-package io.flow.event.actors
+package io.flow.event.actors.v2
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.{Queue, MockQueue, Record}
+import io.flow.event.Record
+import io.flow.event.v2.{MockQueue, Queue}
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
@@ -13,7 +14,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Poll Actor periodically polls a kinesis stream (by default every 5
   * seconds), invoking process once per message.
-  * 
+  *
   * To extend this class:
   *   - implement system, queue, process(record)
   *   - call start(...) w/ the name of the execution context to use
@@ -25,15 +26,24 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     */
   def process(record: Record)
 
+  /**
+    * Called once for every event read off the stream - if true,
+    * we then call process(record). Override this method to
+    * filter specific records to process
+    */
+  def accepts(record: Record): Boolean = {
+    true
+  }
+
   def system: ActorSystem
 
   def queue: Queue
 
-  private[this] implicit var ec: ExecutionContext = null
+  private[this] implicit var ec: ExecutionContext = _
 
   private[this] def defaultDuration = {
     queue match {
-      case q:  MockQueue => FiniteDuration(10, MILLISECONDS)
+      case _:  MockQueue => FiniteDuration(20, MILLISECONDS)
       case _ => FiniteDuration(5, SECONDS)
     }
   }
@@ -53,50 +63,42 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
     this.ec = executionContext
-    this.stream = Some(queue.stream[T])
 
-    system.scheduler.schedule(pollTime, pollTime, self, Poll)
+    queue.consume[T](
+      pollTime = pollTime,
+      f = processWithErrorHandler
+    )
   }
 
-  private[this] var stream: Option[io.flow.event.Stream] = None
-  private[this] case object Poll
+  override def receive: Receive = {
+    case msg: Any => logUnhandledMessage(msg)
+  }
 
-  def receive = akka.event.LoggingReceive {
+  def processWithErrorHandler(record: Record) {
+    Try {
+      if (accepts(record)) {
+        process(record)
+      }
+    } match {
+      case Success(_) => // no-op
+      case Failure(ex) => {
+        ex.printStackTrace(System.err)
 
-    case msg @ Poll => withErrorHandler(msg) {
-      stream match {
-        case None => {
-          sys.error("Must call start before polling")
-        }
-
-        case Some(s) => {
-          s.consume { record =>
-            Try {
-              process(record)
-            } match {
-              case Success(_) => // no-op
-              case Failure(ex) => {
-                ex.printStackTrace(System.err)
-
-                // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
-                if (PollActor.filterExceptionMessage(ex.getMessage)) {
-                  Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
-                } else {
-                  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
-                }
-              }
-            }
-          }
+        // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
+        // which is a work around to on conflict not working for child partition tables
+        if (PollActorErrors.filterExceptionMessage(ex.getMessage)) {
+          Logger.warn(s"[${this.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+        } else {
+          val msg = s"[${this.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}"
+          Logger.error(msg)
+          throw new RuntimeException(msg, ex)
         }
       }
     }
-
-    case msg: Any => logUnhandledMessage(msg)
-
   }
 }
 
-object PollActor {
+object PollActorErrors {
   /** Checks whether the first line of an exception message matches a partman partitioning error, which is not critical. */
   def filterExceptionMessage(message: String): Boolean = {
     message.split("\\r?\\n").headOption.exists(_.matches(".*duplicate key value violates unique constraint.*_p\\d{4}_\\d{2}_\\d{2}_pkey.*"))

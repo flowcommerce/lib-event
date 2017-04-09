@@ -1,0 +1,7 @@
+code:
+  flow:
+    lib-event-test:
+      version: latest
+      generators:
+        play_2_x_json: test/generated
+        

@@ -1,7 +1,8 @@
 package io.flow.event
 
+import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.play.util.FlowEnvironment
-import org.scalatestplus.play.{PlaySpec, OneAppPerSuite}
+import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
 
 class StreamNamesSpec extends PlaySpec with OneAppPerSuite {
 
@@ -32,6 +33,21 @@ class StreamNamesSpec extends PlaySpec with OneAppPerSuite {
 
   "invalidate a service with invalid match" in {
     dev.json("io.flow.sample.v0.Event") must be(None)
+  }
+
+  "fromType returns proper name for union type" in {
+    StreamNames.fromType[TestEvent] must be(
+      Right("development_workstation.lib.event.test.v0.test_event.json")
+    )
+  }
+
+  "fromType returns good error messages" in {
+    StreamNames.fromType must be(
+      Left(List("FlowKinesisError Stream[Nothing] In order to consume events, you must annotate the type you are expecting as this is used to build the stream. Type should be something like io.flow.user.v0.unions.SomeEvent"))
+    )
+    StreamNames.fromType[String] must be(
+      Left(List("FlowKinesisError Stream[String] Could not parse stream name. Expected something like io.flow.user.v0.unions.SomeEvent"))
+    )
   }
 
   "parse" in {
