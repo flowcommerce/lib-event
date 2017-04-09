@@ -16,7 +16,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       "io.flow" %% "lib-play" % "0.3.14",
-      "com.amazonaws" % "amazon-kinesis-client" % "1.7.4",
+      "com.amazonaws" % "amazon-kinesis-client" % "1.7.5",
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
