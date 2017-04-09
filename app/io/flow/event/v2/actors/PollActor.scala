@@ -43,7 +43,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   private[this] def defaultDuration = {
     queue match {
-      case _:  MockQueue => FiniteDuration(10, MILLISECONDS)
+      case _:  MockQueue => FiniteDuration(20, MILLISECONDS)
       case _ => FiniteDuration(5, SECONDS)
     }
   }

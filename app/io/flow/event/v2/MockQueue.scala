@@ -8,7 +8,7 @@ import org.joda.time.DateTime
 import play.api.libs.json.JsValue
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
 
 @Singleton
@@ -25,7 +25,7 @@ class MockQueue @Inject()() extends Queue {
 
   override def consume[T: TypeTag](
     f: Record => Unit,
-    pollTime: FiniteDuration = FiniteDuration(1, "seconds")
+    pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
   )(
     implicit ec: ExecutionContext
   ) {
