@@ -1,8 +1,9 @@
 package io.flow.event.actors.v2
 
-import akka.actor.ActorSystem
+import akka.actor.{Actor, ActorLogging, ActorSystem}
 import io.flow.event.Record
-import io.flow.event.v2.{Queue, MockQueue}
+import io.flow.event.v2.{MockQueue, Queue}
+import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
 import scala.concurrent.ExecutionContext
@@ -18,7 +19,7 @@ import scala.util.{Failure, Success, Try}
   *   - implement system, queue, process(record)
   *   - call start(...) w/ the name of the execution context to use
   */
-trait EventPoll {
+trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   /**
     * Called once for every event read off the stream
@@ -69,6 +70,10 @@ trait EventPoll {
     )
   }
 
+  override def receive: Receive = {
+    case msg: Any => logUnhandledMessage(msg)
+  }
+
   def processWithErrorHandler(record: Record) {
     Try {
       if (accepts(record)) {
@@ -81,7 +86,7 @@ trait EventPoll {
 
         // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
         // which is a work around to on conflict not working for child partition tables
-        if (EventPollErrors.filterExceptionMessage(ex.getMessage)) {
+        if (PollActorErrors.filterExceptionMessage(ex.getMessage)) {
           Logger.warn(s"[${this.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
         } else {
           val msg = s"[${this.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}"
@@ -93,7 +98,7 @@ trait EventPoll {
   }
 }
 
-object EventPollErrors {
+object PollActorErrors {
   /** Checks whether the first line of an exception message matches a partman partitioning error, which is not critical. */
   def filterExceptionMessage(message: String): Boolean = {
     message.split("\\r?\\n").headOption.exists(_.matches(".*duplicate key value violates unique constraint.*_p\\d{4}_\\d{2}_\\d{2}_pkey.*"))
