@@ -1,8 +1,7 @@
 package io.flow.event.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import io.flow.event.{MockQueue, Record}
-import io.flow.event.v2.Queue
+import io.flow.event.{Queue, MockQueue, Record}
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
@@ -12,7 +11,7 @@ import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Poll Actor periodically polls a kinesis stream (by default every 5
+  * Poll Actor periodicaly polls a kinesis stream (by default every 5
   * seconds), invoking process once per message.
   * 
   * To extend this class:
@@ -34,49 +33,66 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
 
   private[this] def defaultDuration = {
     queue match {
-      case _: MockQueue => FiniteDuration(10, MILLISECONDS)
+      case q:  MockQueue => FiniteDuration(10, MILLISECONDS)
       case _ => FiniteDuration(5, SECONDS)
     }
   }
 
   def start[T: TypeTag](
-                         executionContextName: String,
-                         pollTime: FiniteDuration = defaultDuration
-                       ) {
+    executionContextName: String,
+    pollTime: FiniteDuration = defaultDuration
+  ) {
     val ec = system.dispatchers.lookup(executionContextName)
     startWithExecutionContext(ec, pollTime)
   }
 
   def startWithExecutionContext[T: TypeTag](
-                                             executionContext: ExecutionContext,
-                                             pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
-                                           ) {
+    executionContext: ExecutionContext,
+    pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
+  ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
-    queue.consume[T](
-      f = processWithErrorHandling,
-      pollTime = pollTime
-    )
+    this.ec = executionContext
+    this.stream = Some(queue.stream[T])
+
+    system.scheduler.schedule(pollTime, pollTime, self, Poll)
   }
 
-  def processWithErrorHandling(record: Record) {
-    Try {
-      process(record)
-    } match {
-      case Success(_) => // no-op
-      case Failure(ex) => {
-        ex.printStackTrace(System.err)
+  private[this] var stream: Option[io.flow.event.Stream] = None
+  private[this] case object Poll
 
-        // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
-        if (PollActor.filterExceptionMessage(ex.getMessage)) {
-          Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
-        } else {
-          Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
+  def receive = akka.event.LoggingReceive {
+
+    case msg @ Poll => withErrorHandler(msg) {
+      stream match {
+        case None => {
+          sys.error("Must call start before polling")
+        }
+
+        case Some(s) => {
+          s.consume { record =>
+            Try {
+              process(record)
+            } match {
+              case Success(_) => // no-op
+              case Failure(ex) => {
+                ex.printStackTrace(System.err)
+
+                // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
+                PollActor.filterExceptionMessage(ex.getMessage) match {
+                  case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
+                  case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+                }
+              }
+            }
+          }
         }
       }
     }
-  }
 
+    case msg: Any => logUnhandledMessage(msg)
+
+  }
 }
 
 object PollActor {
