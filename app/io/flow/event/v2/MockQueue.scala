@@ -1,5 +1,6 @@
 package io.flow.event.v2
 
+import java.util.concurrent.Executors
 import javax.inject.{Inject, Singleton}
 
 import io.flow.event.{Record, StreamNames}
@@ -24,11 +25,17 @@ class MockQueue @Inject()() extends Queue {
 
   override def consume[T: TypeTag](
     f: Record => Unit,
-    pollTime: FiniteDuration = FiniteDuration(5, "seconds")
+    pollTime: FiniteDuration = FiniteDuration(1, "seconds")
   )(
     implicit ec: ExecutionContext
   ) {
-    stream[T].consume().foreach(f)
+    val s = stream[T]
+    Executors.newSingleThreadExecutor().execute(new Runnable() {
+      override def run(): Unit = {
+        s.consume().foreach(f)
+        Thread.sleep(pollTime.toMillis)
+      }
+    })
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
