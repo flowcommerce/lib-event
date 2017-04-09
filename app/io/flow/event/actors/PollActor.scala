@@ -11,7 +11,7 @@ import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Poll Actor periodicaly polls a kinesis stream (by default every 5
+  * Poll Actor periodically polls a kinesis stream (by default every 5
   * seconds), invoking process once per message.
   * 
   * To extend this class:
@@ -78,10 +78,11 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
               case Failure(ex) => {
                 ex.printStackTrace(System.err)
 
-                // explicitly catch and only warn on duplicate key value contraint errors on partitioned tables
-                PollActor.filterExceptionMessage(ex.getMessage) match {
-                  case false =>  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
-                  case true => Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+                // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
+                if (PollActor.filterExceptionMessage(ex.getMessage)) {
+                  Logger.warn(s"[${self.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+                } else {
+                  Logger.error(s"[${self.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}", ex)
                 }
               }
             }
