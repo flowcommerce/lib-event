@@ -15,16 +15,16 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     val producer = q.producer[TestEvent]()
     val stream = q.stream[TestEvent]
 
-    q.consume[TestEvent] { _ =>
-      sys.error("Queue should be empty")
-    }
-
-    val eventId = publishTestObject(producer, testObject)
     var rec: Option[Record] = None
     q.consume[TestEvent] { r =>
       rec = Some(r)
     }
-    rec.get.eventId must equal(eventId)
+
+    val eventId = publishTestObject(producer, testObject)
+
+    eventuallyInNSeconds(1) {
+      rec.get
+    }.eventId must equal(eventId)
 
     stream.all.map(_.eventId) must equal(Seq(eventId))
     stream.consumed.map(_.eventId) must equal(Seq(eventId))
@@ -36,7 +36,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     val producer = q.producer[TestEvent]()
 
     val eventId = publishTestObject(producer, testObject)
-    q.stream[TestEvent].consumeEventId(eventId).get.eventId must equal(eventId)
+    q.stream[TestEvent].findByEventId(eventId).get.eventId must equal(eventId)
   }
 
 }

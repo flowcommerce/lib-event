@@ -32,8 +32,10 @@ class MockQueue @Inject()() extends Queue {
     val s = stream[T]
     Executors.newSingleThreadExecutor().execute(new Runnable() {
       override def run(): Unit = {
-        s.consume().foreach(f)
-        Thread.sleep(pollTime.toMillis)
+        while (true) {
+          s.consume().foreach(f)
+          Thread.sleep(pollTime.toMillis)
+        }
       }
     })
   }
@@ -85,16 +87,11 @@ case class MockStream() {
   }
 
   /**
-    * Consumes the event w/ the specified id. Returns none if
+    * Finds the event w/ the specified id. Returns none if
     * we have not yet received this event.
     */
-  def consumeEventId(eventId: String): Option[Record] = {
-    pendingRecords.find(_.eventId == eventId).map { rec =>
-      val i = pendingRecords.indexOf(rec)
-      pendingRecords.remove(i)
-      consumedRecords.append(rec)
-      rec
-    }
+  def findByEventId(eventId: String): Option[Record] = {
+    all.find(_.eventId == eventId)
   }
 
   /**
