@@ -19,9 +19,7 @@ class MockQueue @Inject()() extends Queue {
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer = {
-    val stream = MockStream()
-    streams.put(streamName[T], stream)
-    MockProducer(stream)
+    MockProducer(stream[T])
   }
 
   override def consume[T: TypeTag](
@@ -44,7 +42,9 @@ class MockQueue @Inject()() extends Queue {
 
   def stream[T: TypeTag]: MockStream = {
     streams.get(streamName[T]).getOrElse {
-      sys.error("Mock requires you to create the producer for this stream before consuming")
+      val stream = MockStream()
+      streams.put(streamName[T], stream)
+      stream
     }
   }
 
