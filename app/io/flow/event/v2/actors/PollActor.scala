@@ -87,7 +87,7 @@ trait PollActor extends Actor with ActorLogging with ErrorHandler {
         // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
         // which is a work around to on conflict not working for child partition tables
         if (PollActorErrors.filterExceptionMessage(ex.getMessage)) {
-          Logger.warn(s"[${this.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}", ex)
+          Logger.warn(s"[${this.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}")
         } else {
           val msg = s"[${this.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}"
           Logger.error(msg)
