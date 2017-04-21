@@ -443,6 +443,8 @@ case class KinesisStream(
             Logger.error(msg)
             throw new Exception(msg, ex)
           case ex: Throwable => {
+            ex.printStackTrace(System.err)
+            
             val msg = s"FlowKinesisError Stream [$name] Failed in [io.flow.event.$methodName].  Error was: ${ex.getMessage}"
             Logger.error(msg)
             throw new Exception(msg, ex)
