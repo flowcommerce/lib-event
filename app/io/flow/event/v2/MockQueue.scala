@@ -79,10 +79,12 @@ case class MockStream() {
     * Consumes the next event in the stream, if any
     */
   def consume(): Option[Record] = {
-    pendingRecords.headOption.map { r =>
-      pendingRecords.remove(0)
-      consumedRecords.append(r)
-      r
+    synchronized {
+      pendingRecords.headOption.map { r =>
+        pendingRecords.remove(0)
+        consumedRecords.append(r)
+        r
+      }
     }
   }
 
