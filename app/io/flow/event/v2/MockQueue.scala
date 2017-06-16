@@ -72,18 +72,23 @@ case class MockStream() {
   private[this] val consumedRecords = scala.collection.mutable.ListBuffer[Record]()
 
   def publish(record: Record): Unit = {
-    pendingRecords.append(record)
+    synchronized {
+      pendingRecords.append(record)
+    }
   }
 
   /**
     * Consumes the next event in the stream, if any
     */
   def consume(): Option[Record] = {
-    synchronized {
-      pendingRecords.headOption.map { r =>
-        pendingRecords.remove(0)
-        consumedRecords.append(r)
-        r
+    pendingRecords.headOption.flatMap { r =>
+      // only synchronize if we got a record, which is rare in our usage
+      synchronized {
+        pendingRecords.headOption.map { r =>
+          pendingRecords.remove(0)
+          consumedRecords.append(r)
+          r
+        }
       }
     }
   }
@@ -100,7 +105,9 @@ case class MockStream() {
     * Returns all records seen - pending and consumed
     */
   def all: Seq[Record] = {
-    pendingRecords ++ consumedRecords
+    synchronized {
+      pendingRecords ++ consumedRecords
+    }
   }
 
   def pending: Seq[Record] = pendingRecords
