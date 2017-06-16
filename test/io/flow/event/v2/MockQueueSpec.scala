@@ -90,41 +90,41 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     val producerRunnable = new Runnable {
       override def run(): Unit = publishTestObject(producer, testObject)
     }
-    Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(producerRunnable, 0, 3, TimeUnit.MILLISECONDS)
+    Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(producerRunnable, 0, 100, TimeUnit.MILLISECONDS)
 
     // eventually stream should contain pending elements
-    eventuallyInNSeconds(1) {
-      q.stream[TestEvent].pending.size must be > 10
+    eventuallyInNSeconds(2) {
+      q.stream[TestEvent].pending.size must be > 1
     }
 
     // consume every 1 ms
     q.consume[TestEvent](_ => (), 1 milli)
 
     // eventually, stream should be almost empty
-    eventuallyInNSeconds(1) {
+    eventuallyInNSeconds(5) {
       q.stream[TestEvent].pending.size must be <= 1
     }
 
     q.shutdownConsumers
 
     // eventually stream should not be almost empty any more
-    eventuallyInNSeconds(1) {
-      q.stream[TestEvent].pending.size must be > 10
+    eventuallyInNSeconds(2) {
+      q.stream[TestEvent].pending.size must be > 1
     }
 
     // bring in 2 consumers on the same stream
-    q.consume[TestEvent](_ => (), 1 nano)
-    q.consume[TestEvent](_ => (), 1 nano)
+    q.consume[TestEvent](_ => (), 1 milli)
+    q.consume[TestEvent](_ => (), 1 milli)
 
-    eventuallyInNSeconds(1) {
+    eventuallyInNSeconds(5) {
       q.stream[TestEvent].pending.size must be <= 1
     }
 
     q.shutdownConsumers
 
     // eventually stream should not be almost empty any more
-    eventuallyInNSeconds(1) {
-      q.stream[TestEvent].pending.size must be > 10
+    eventuallyInNSeconds(2) {
+      q.stream[TestEvent].pending.size must be > 1
     }
   }
 
