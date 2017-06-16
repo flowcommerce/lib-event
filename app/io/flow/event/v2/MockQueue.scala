@@ -70,10 +70,12 @@ case class MockStream() {
     * Consumes the next event in the stream, if any
     */
   def consume(): Option[Record] = {
-    // Should "poll then add" be an atomic operation?
-    val r = Option(pendingRecords.poll())
-    r.foreach(consumedRecords.add)
-    r
+    // synchronized for consistency between pending and consumed
+    synchronized {
+      val r = Option(pendingRecords.poll())
+      r.foreach(consumedRecords.add)
+      r
+    }
   }
 
   /**
@@ -88,8 +90,10 @@ case class MockStream() {
     * Returns all records seen - pending and consumed
     */
   def all: Seq[Record] = {
-    // Should this be an atomic operation?
-    (pendingRecords.asScala ++ consumedRecords.asScala).toSeq
+    // synchronized for consistency between pending and consumed
+    synchronized {
+      (pendingRecords.asScala ++ consumedRecords.asScala).toSeq
+    }
   }
 
   def pending: Seq[Record] = pendingRecords.asScala.toSeq
