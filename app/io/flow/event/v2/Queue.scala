@@ -1,5 +1,6 @@
 package io.flow.event.v2
 
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
 import com.amazonaws.auth.BasicAWSCredentials
@@ -53,7 +54,9 @@ class DefaultQueue @Inject() (
   config: Config
 ) extends Queue {
 
-  private[this] val consumers = scala.collection.mutable.ListBuffer[KinesisConsumer]()
+  import scala.collection.JavaConverters._
+
+  private[this] val consumers = new ConcurrentLinkedQueue[KinesisConsumer]()
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
@@ -72,7 +75,7 @@ class DefaultQueue @Inject() (
   )(
      implicit ec: ExecutionContext
   ) {
-    consumers.append(
+    consumers.add(
       KinesisConsumer(
         streamConfig[T],
         f
@@ -80,9 +83,12 @@ class DefaultQueue @Inject() (
     )
   }
 
-  def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
-    consumers.foreach(_.shutdown)
-    consumers.clear()
+  override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
+    // synchronized to avoid a consumer being registered "in between" the shutdown and the clear
+    synchronized {
+      consumers.asScala.foreach(_.shutdown)
+      consumers.clear()
+    }
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {

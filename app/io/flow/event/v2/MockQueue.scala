@@ -16,6 +16,7 @@ import scala.collection.JavaConverters._
 class MockQueue @Inject()() extends Queue {
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
+  private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
@@ -31,18 +32,20 @@ class MockQueue @Inject()() extends Queue {
     implicit ec: ExecutionContext
   ) {
     val s = stream[T]
-    val runnable = new Runnable() {
-      override def run(): Unit = s.consume().foreach(f)
-    }
-    Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
+    val consumer = RunningConsumer(s, f, pollTime)
+    consumers.add(consumer)
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
+    shutdownConsumers
     streams.clear()
   }
 
   override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
-    // no-op
+    synchronized {
+      consumers.asScala.foreach(_.shutdown())
+      consumers.clear()
+    }
   }
 
   def stream[T: TypeTag]: MockStream = {
@@ -56,6 +59,27 @@ class MockQueue @Inject()() extends Queue {
       case Right(name) => name
     }
   }
+
+  /**
+    * Clears all pending records from the queue.
+    * Does not shutdown the consumers.
+    */
+  def clear() = streams.values().asScala.foreach(_.clearPending())
+
+}
+
+case class RunningConsumer(stream: MockStream, action: Record => Unit, pollTime: FiniteDuration) {
+
+  private val runnable = new Runnable() {
+    override def run(): Unit = stream.consume().foreach(action)
+  }
+
+  private val ses = Executors.newSingleThreadScheduledExecutor()
+  ses.scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
+
+  def shutdown(): Unit =
+    // use shutdownNow in case the provided action comes with a while-sleep loop.
+    ses.shutdownNow()
 
 }
 
@@ -100,6 +124,9 @@ case class MockStream() {
 
   def pending: Seq[Record] = pendingRecords.asScala.toSeq
   def consumed: Seq[Record] = consumedRecords.asScala.toSeq
+
+  def clearPending() = pendingRecords.clear()
+  def clearConsumed() = consumedRecords.clear()
 
 }
 
