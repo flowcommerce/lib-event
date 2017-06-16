@@ -84,7 +84,7 @@ class DefaultQueue @Inject() (
   }
 
   override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
-    // synchronized to avoid a consumer being registered "in between" the shutdown and the clear
+    // synchronized to avoid a consumer being registered "in between" shutdown and clear
     synchronized {
       consumers.asScala.foreach(_.shutdown)
       consumers.clear()
