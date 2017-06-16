@@ -31,7 +31,9 @@ class MockQueue @Inject()() extends Queue {
     implicit ec: ExecutionContext
   ) {
     val s = stream[T]
-    val runnable = new Runnable() { override def run(): Unit = s.consume().foreach(f) }
+    val runnable = new Runnable() {
+      override def run(): Unit = s.consume().foreach(f)
+    }
     Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
   }
 
