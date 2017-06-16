@@ -1,8 +1,14 @@
 package io.flow.event.v2
 
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.{AtomicReference, LongAdder}
+
 import io.flow.event.Record
-import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
+import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
 import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
+
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
@@ -15,16 +21,16 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     val producer = q.producer[TestEvent]()
     val stream = q.stream[TestEvent]
 
-    var rec: Option[Record] = None
+    val rec = new AtomicReference[Option[Record]](None)
     q.consume[TestEvent] { r =>
-      rec = Some(r)
+      rec.set(Some(r))
     }
 
     val eventId = publishTestObject(producer, testObject)
 
     eventuallyInNSeconds(1) {
-      rec.get
-    }.eventId must equal(eventId)
+      rec.get.get.eventId mustBe eventId
+    }
 
     stream.all.map(_.eventId) must equal(Seq(eventId))
     stream.consumed.map(_.eventId) must equal(Seq(eventId))
@@ -37,6 +43,39 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
     val eventId = publishTestObject(producer, testObject)
     q.stream[TestEvent].findByEventId(eventId).get.eventId must equal(eventId)
+  }
+
+  "produce and consume in different threads" in {
+    val consumersPoolSize = 12
+    val producersPoolSize = 24
+    // the json conversion when publishing is quite heavy and therefore makes it hard to huge a much bigger number
+    val eventsSize = 50000
+    val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
+    val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
+
+    val q = new MockQueue()
+    val producer = q.producer[TestEvent]()
+
+    val count = new LongAdder()
+
+    // consume: start [[consumersSize]] consumers consuming concurrently
+    (1 to consumersPoolSize).foreach { _ =>
+      Future {
+        q.consume[TestEvent](_ => count.increment(), 1 nano)
+      } (consumerContext)
+    }
+
+    // publish concurrently
+    (1 to eventsSize).foreach { _ =>
+      Future {
+        publishTestObject(producer, testObject)
+      } (producerContext)
+    }
+
+    // eventually we should have consumed it all
+    eventuallyInNSeconds(10) {
+      count.longValue() mustBe eventsSize
+    }
   }
 
 }

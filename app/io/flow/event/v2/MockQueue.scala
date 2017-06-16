@@ -1,6 +1,6 @@
 package io.flow.event.v2
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
 import javax.inject.{Inject, Singleton}
 
 import io.flow.event.{Record, StreamNames}
@@ -10,11 +10,12 @@ import play.api.libs.json.JsValue
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
+import scala.collection.JavaConverters._
 
 @Singleton
 class MockQueue @Inject()() extends Queue {
 
-  private[this] val streams = scala.collection.mutable.Map[String, MockStream]()
+  private[this] val streams = new ConcurrentHashMap[String, MockStream]()
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
@@ -30,14 +31,10 @@ class MockQueue @Inject()() extends Queue {
     implicit ec: ExecutionContext
   ) {
     val s = stream[T]
-    Executors.newSingleThreadExecutor().execute(new Runnable() {
-      override def run(): Unit = {
-        while (true) {
-          s.consume().foreach(f)
-          Thread.sleep(pollTime.toMillis)
-        }
-      }
-    })
+    val runnable = new Runnable() {
+      override def run(): Unit = s.consume().foreach(f)
+    }
+    Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
@@ -48,13 +45,9 @@ class MockQueue @Inject()() extends Queue {
     // no-op
   }
 
-
   def stream[T: TypeTag]: MockStream = {
-    streams.get(streamName[T]).getOrElse {
-      val stream = MockStream()
-      streams.put(streamName[T], stream)
-      stream
-    }
+    streams.computeIfAbsent(streamName[T],
+      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream() })
   }
 
   private[this] def streamName[T: TypeTag] = {
@@ -68,28 +61,22 @@ class MockQueue @Inject()() extends Queue {
 
 case class MockStream() {
 
-  private[this] val pendingRecords = scala.collection.mutable.ListBuffer[Record]()
-  private[this] val consumedRecords = scala.collection.mutable.ListBuffer[Record]()
+  private[this] val pendingRecords = new ConcurrentLinkedQueue[Record]()
+  private[this] val consumedRecords = new ConcurrentLinkedQueue[Record]()
 
   def publish(record: Record): Unit = {
-    synchronized {
-      pendingRecords.append(record)
-    }
+    pendingRecords.add(record)
   }
 
   /**
     * Consumes the next event in the stream, if any
     */
   def consume(): Option[Record] = {
-    pendingRecords.headOption.flatMap { r =>
-      // only synchronize if we got a record, which is rare in our usage
-      synchronized {
-        pendingRecords.headOption.map { r =>
-          pendingRecords.remove(0)
-          consumedRecords.append(r)
-          r
-        }
-      }
+    // synchronized for consistency between pending and consumed
+    synchronized {
+      val r = Option(pendingRecords.poll())
+      r.foreach(consumedRecords.add)
+      r
     }
   }
 
@@ -105,13 +92,14 @@ case class MockStream() {
     * Returns all records seen - pending and consumed
     */
   def all: Seq[Record] = {
+    // synchronized for consistency between pending and consumed
     synchronized {
-      pendingRecords ++ consumedRecords
+      (pendingRecords.asScala ++ consumedRecords.asScala).toSeq
     }
   }
 
-  def pending: Seq[Record] = pendingRecords
-  def consumed: Seq[Record] = consumedRecords
+  def pending: Seq[Record] = pendingRecords.asScala.toSeq
+  def consumed: Seq[Record] = consumedRecords.asScala.toSeq
 
 }
 
