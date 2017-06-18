@@ -2,6 +2,10 @@ package io.flow.event
 
 import play.api.libs.json._
 
+/**
+  * Simple utilities to parse required fields from Json
+  * @see io.flow.event.JsonUtil for more comprehensive utilities
+  */
 object Util {
 
   def parseString(json: JsValue, field: String): Option[String] = {
