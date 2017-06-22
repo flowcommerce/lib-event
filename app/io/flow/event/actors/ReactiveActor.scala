@@ -1,10 +1,12 @@
 package io.flow.event.actors
 
-import akka.actor.{Actor, ActorLogging, ActorSystem}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Cancellable}
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 import org.joda.time.DateTime
 
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
@@ -32,6 +34,13 @@ object ReactiveActor {
   */
 trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
 
+  val scheduledActions: ListBuffer[Cancellable] = ListBuffer[Cancellable]()
+
+  override def postStop(): Unit = {
+    scheduledActions.foreach { _.cancel() }
+    super.postStop()
+  }
+
   def system: ActorSystem
 
   def process()
@@ -54,8 +63,9 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
     implicit executionContext: ExecutionContext
   ) {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime, ping every $pingTime")
-    system.scheduler.schedule(pollTime, pollTime, self, Poll)
-    system.scheduler.schedule(pingTime, pingTime, self, Ping)
+    scheduledActions += system.scheduler.schedule(pollTime, pollTime, self, Poll)
+    scheduledActions += system.scheduler.schedule(pingTime, pingTime, self, Ping)
+
   }
 
   private[this] var nextProcess: Option[DateTime] = None
