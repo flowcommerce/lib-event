@@ -15,8 +15,8 @@ lazy val root = project
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.3.21",
-      "com.amazonaws" % "amazon-kinesis-client" % "1.7.5",
+      "io.flow" %% "lib-play" % "0.3.22",
+      "com.amazonaws" % "amazon-kinesis-client" % "1.7.6",
       "org.scalatestplus" %% "play" % "1.4.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
