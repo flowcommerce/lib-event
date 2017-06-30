@@ -15,10 +15,10 @@ object JsonUtil {
   def requiredString(json: JsValue, field: String): String = mustGet(json, field, optionalString(json, field))
 
   def optionalString(json: JsValue, field: String): Option[String] = {
-    (json \ field).validate[JsValue] match {
-      case JsError(_) => sys.error(s"Field[$field] is required")
-      case JsSuccess(value, _) => {
-        val stringValue = value match {
+    (json \ field).asOpt[JsValue] match {
+      case None => None
+      case Some(jsValue) => {
+        val stringValue = jsValue match {
           case v: JsBoolean => v.value.toString()
           case v: JsNumber => v.value.toString()
           case v: JsString => v.value

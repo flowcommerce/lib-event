@@ -71,6 +71,16 @@ class JsonUtilSpec extends FunSpec with Matchers {
     }
   }
 
+  it("optionalPositiveLong") {
+    JsonUtil.optionalPositiveLong(Json.obj(), "id") should be(None)
+    JsonUtil.optionalPositiveLong(Json.obj("id" -> ""), "id") should be(None)
+    JsonUtil.optionalPositiveLong(Json.obj("id" -> "5"), "id") should be(Some(5l))
+
+    validateError("Field[id] has invalid value[-5]: must be > 0") {
+      JsonUtil.optionalPositiveLong(Json.obj("id" -> "-5"), "id")
+    }
+  }
+
   it("requiredPositiveInt") {
     JsonUtil.requiredPositiveInt(Json.obj("id" -> "5"), "id") should be(5)
 
@@ -78,7 +88,6 @@ class JsonUtilSpec extends FunSpec with Matchers {
       JsonUtil.requiredPositiveInt(Json.obj("id" -> "-5"), "id")
     }
   }
-
 
   it("requiredBoolean") {
     JsonUtil.requiredBoolean(Json.obj("id" -> "true"), "id") should be(true)
