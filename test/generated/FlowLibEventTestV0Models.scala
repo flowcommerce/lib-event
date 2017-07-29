@@ -19,7 +19,7 @@ package io.flow.lib.event.test.v0.models {
 
     case class UNDEFINED(override val toString: String) extends TestEventDiscriminator
 
-    val all: List[TestEventDiscriminator] = List(TestObjectUpserted, TestObjectDeleted)
+    val all: scala.List[TestEventDiscriminator] = scala.List(TestObjectUpserted, TestObjectDeleted)
 
     private[this] val byName: Map[String, TestEventDiscriminator] = all.map(x => x.toString.toLowerCase -> x).toMap
 
