@@ -39,4 +39,4 @@ publishTo := {
     Some("Artifactory Realm" at s"$host/libs-release-local")
   }
 }
-version := "0.2.30"
+version := "0.2.31"
