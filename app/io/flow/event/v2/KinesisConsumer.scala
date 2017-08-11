@@ -101,7 +101,6 @@ case class KinesisRecordProcessor[T](
         value = bytes
       )
 
-      Logger.info(s"KinesisRecordProcessor workerId[$workerId] eventId[${rec.eventId}]")
       f(rec)
     }
 
