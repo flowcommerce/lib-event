@@ -8,6 +8,7 @@ import io.flow.event.Util
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
@@ -45,31 +46,31 @@ case class KinesisProducer(
     */
   override def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = {
 
-    val batchedRecords = new util.LinkedList[util.List[PutRecordsRequestEntry]]()
+    val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
     val firstBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
-    batchedRecords.add(firstBatch)
+    batchedRecords += firstBatch
 
-    events.foldLeft((0L, 0L, firstBatch)) { case ((count, bytesSize, currentBatch), event) =>
+    events.foldLeft((0L, 0L, firstBatch)) { case ((currentSize, currentBytesSize, currentBatch), event) =>
       // convert to [[PutRecordsRequestEntry]]
       val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
       val data = Json.stringify(event).getBytes("UTF-8")
       val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
 
       // did the current batch reach one of the limitations?
-      val newBytesSize = bytesSize + data.length
-      if (count == MaxBatchRecordsCount || newBytesSize > MaxBatchRecordsSizeBytes) {
-        val newCurr = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
-        batchedRecords.add(newCurr)
-        newCurr.add(record)
-        (0L, 0L, newCurr)
+      val newBytesSize = currentBytesSize + data.length
+      if (currentSize == MaxBatchRecordsCount || newBytesSize > MaxBatchRecordsSizeBytes) {
+        val newBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
+        batchedRecords += newBatch
+        newBatch.add(record)
+        (0L, 0L, newBatch)
       } else {
         currentBatch.add(record)
-        (count + 1, newBytesSize, currentBatch)
+        (currentSize + 1, newBytesSize, currentBatch)
       }
     }
 
-    for (group <- batchedRecords) yield {
-      val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(group)
+    batchedRecords.foreach { batch =>
+      val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(batch)
       kinesisClient.putRecords(putRecordsRequest)
     }
 
