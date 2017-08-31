@@ -38,9 +38,11 @@ trait Queue {
 
 trait Producer {
 
-  def publish(event: JsValue)(implicit ec: ExecutionContext)
+  def publish(event: JsValue)(implicit ec: ExecutionContext): Unit
 
-  def shutdown(implicit ec: ExecutionContext)
+  def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = events.foreach(publish)
+
+  def shutdown(implicit ec: ExecutionContext): Unit
 
 }
 
