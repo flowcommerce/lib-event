@@ -62,7 +62,7 @@ case class KinesisProducer(
         val newBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
         batchedRecords += newBatch
         newBatch.add(record)
-        (0L, 0L, newBatch)
+        (1L, data.length, newBatch)
       } else {
         currentBatch.add(record)
         (currentSize + 1, newBytesSize, currentBatch)
