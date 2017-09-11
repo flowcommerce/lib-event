@@ -15,7 +15,7 @@ lazy val root = project
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.4.2-SNAPSHOT",
+      "io.flow" %% "lib-play" % "0.3.33",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.1",
       "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.1" % "test",
       "org.mockito" % "mockito-core" % "2.9.0" % "test"
@@ -23,8 +23,6 @@ lazy val root = project
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
     resolvers += "Artifactory" at "https://flow.artifactoryonline.com/flow/libs-release/",
-    resolvers += "Artifactory-Snapshots-Local" at "https://flow.artifactoryonline.com/flow/libs-snapshot-local/",
-    resolvers += "Artifactory-Releases-Local" at "https://flow.artifactoryonline.com/flow/libs-release-local/",
     credentials += Credentials(
       "Artifactory Realm",
       "flow.artifactoryonline.com",
@@ -42,4 +40,4 @@ publishTo := {
     Some("Artifactory Realm" at s"$host/libs-release-local")
   }
 }
-version := "0.3.0-SNAPSHOT"
+version := "0.3.0"
