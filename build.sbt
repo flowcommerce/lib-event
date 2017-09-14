@@ -15,10 +15,10 @@ lazy val root = project
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.3.33",
+      "io.flow" %% "lib-play" % "0.4.0",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.1",
       "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.1" % "test",
-      "org.mockito" % "mockito-core" % "2.9.0" % "test"
+      "org.mockito" % "mockito-core" % "2.10.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
