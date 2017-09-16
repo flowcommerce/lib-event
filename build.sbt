@@ -1,12 +1,12 @@
-import play.sbt.PlayScala._
+import play.PlayImport.PlayKeys._
 
 name := "lib-event"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.12.3"
+scalaVersion in ThisBuild := "2.11.11"
 
-crossScalaVersions := Seq("2.11.11", "2.12.3")
+crossScalaVersions := Seq("2.11.11")
 
 lazy val root = project
   .in(file("."))
@@ -15,9 +15,9 @@ lazy val root = project
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.4.2",
+      "io.flow" %% "lib-play" % "0.3.32",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.1",
-      "org.scalatestplus.play" %% "scalatestplus-play" % "3.1.2" % "test",
+      "org.scalatestplus" %% "play" % "1.4.0" % "test",
       "org.mockito" % "mockito-core" % "2.10.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
