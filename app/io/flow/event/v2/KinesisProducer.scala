@@ -45,35 +45,36 @@ case class KinesisProducer(
     * a limit of 5 MB for the entire request, including partition keys."
     */
   override def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = {
+    // Make sure that there are events: AWS will complain otherwise
+    if (events.nonEmpty) {
+      val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
+      val firstBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
+      batchedRecords += firstBatch
 
-    val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
-    val firstBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
-    batchedRecords += firstBatch
+      events.foldLeft((0L, 0L, firstBatch)) { case ((currentSize, currentBytesSize, currentBatch), event) =>
+        // convert to [[PutRecordsRequestEntry]]
+        val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
+        val data = Json.stringify(event).getBytes("UTF-8")
+        val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
 
-    events.foldLeft((0L, 0L, firstBatch)) { case ((currentSize, currentBytesSize, currentBatch), event) =>
-      // convert to [[PutRecordsRequestEntry]]
-      val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
-      val data = Json.stringify(event).getBytes("UTF-8")
-      val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
+        // did the current batch reach one of the limitations?
+        val newBytesSize = currentBytesSize + data.length
+        if (currentSize == MaxBatchRecordsCount || newBytesSize > MaxBatchRecordsSizeBytes) {
+          val newBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
+          batchedRecords += newBatch
+          newBatch.add(record)
+          (1L, data.length, newBatch)
+        } else {
+          currentBatch.add(record)
+          (currentSize + 1, newBytesSize, currentBatch)
+        }
+      }
 
-      // did the current batch reach one of the limitations?
-      val newBytesSize = currentBytesSize + data.length
-      if (currentSize == MaxBatchRecordsCount || newBytesSize > MaxBatchRecordsSizeBytes) {
-        val newBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
-        batchedRecords += newBatch
-        newBatch.add(record)
-        (1L, data.length, newBatch)
-      } else {
-        currentBatch.add(record)
-        (currentSize + 1, newBytesSize, currentBatch)
+      batchedRecords.foreach { batch =>
+        val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(batch)
+        kinesisClient.putRecords(putRecordsRequest)
       }
     }
-
-    batchedRecords.foreach { batch =>
-      val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(batch)
-      kinesisClient.putRecords(putRecordsRequest)
-    }
-
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
