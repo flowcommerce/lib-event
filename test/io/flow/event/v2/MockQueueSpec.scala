@@ -24,7 +24,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
 
     val rec = new AtomicReference[Option[Record]](None)
     q.consume[TestEvent] { r =>
-      rec.set(Some(r))
+      rec.set(r.headOption)
     }
 
     val eventId = publishTestObject(producer, testObject)

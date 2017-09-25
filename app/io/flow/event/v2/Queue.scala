@@ -24,11 +24,9 @@ trait Queue {
     * invoking your provided function for each new record
     */
   def consume[T: TypeTag](
-    f: Record => Unit,
+    f: Seq[Record] => Unit,
     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
-  )(
-    implicit ec: ExecutionContext
-  )
+  )(implicit ec: ExecutionContext)
 
   def shutdown(implicit ec: ExecutionContext)
 
@@ -72,11 +70,9 @@ class DefaultQueue @Inject() (
   }
 
   override def consume[T: TypeTag](
-     f: Record => Unit,
+     f: Seq[Record] => Unit,
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
-  )(
-     implicit ec: ExecutionContext
-  ) {
+  )(implicit ec: ExecutionContext) {
     consumers.add(
       KinesisConsumer(
         streamConfig[T],

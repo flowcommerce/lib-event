@@ -26,7 +26,7 @@ class MockQueue @Inject()() extends Queue {
   }
 
   override def consume[T: TypeTag](
-    f: Record => Unit,
+    f: Seq[Record] => Unit,
     pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
   )(
     implicit ec: ExecutionContext
@@ -68,10 +68,10 @@ class MockQueue @Inject()() extends Queue {
 
 }
 
-case class RunningConsumer(stream: MockStream, action: Record => Unit, pollTime: FiniteDuration) {
+case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, pollTime: FiniteDuration) {
 
   private val runnable = new Runnable() {
-    override def run(): Unit = stream.consume().foreach(action)
+    override def run(): Unit = stream.consume().foreach(e => action(Seq(e)))
   }
 
   private val ses = Executors.newSingleThreadScheduledExecutor()

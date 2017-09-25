@@ -58,7 +58,7 @@ trait Helpers {
     // println(s"  --> consumeUntil for eventId[$eventId]")
     q.consume[T] { rec =>
       // println(s"  --> record eventId[${rec.eventId}]")
-      all.append(rec)
+      all ++ rec
     }
 
     Await.result(

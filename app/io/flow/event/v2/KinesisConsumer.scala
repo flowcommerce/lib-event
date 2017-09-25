@@ -2,23 +2,23 @@ package io.flow.event.v2
 
 import java.net.InetAddress
 import java.util.UUID
-import java.util.concurrent.{ExecutorService, Executors}
+import java.util.concurrent.Executors
 
-import io.flow.event.{Naming, Record}
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
+import io.flow.event.Record
 import io.flow.play.util.FlowEnvironment
 import org.joda.time.DateTime
 import play.api.Logger
 
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
-import collection.JavaConverters._
 
 case class KinesisConsumer (
   config: StreamConfig,
-  f: Record => Unit
+  f: Seq[Record] => Unit
 ) {
 
   private[this] val workerId = Seq(
@@ -69,11 +69,11 @@ case class KinesisConsumer (
 case class KinesisRecordProcessorFactory(
   config: StreamConfig,
   workerId: String,
-  f: Record => Unit
+  f: Seq[Record] => Unit
 ) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config, workerId, f: Record => Unit)
+    KinesisRecordProcessor(config, workerId, f)
   }
 
 }
@@ -81,7 +81,7 @@ case class KinesisRecordProcessorFactory(
 case class KinesisRecordProcessor[T](
   config: StreamConfig,
   workerId: String,
-  f: Record => Unit
+  f: Seq[Record] => Unit
 ) extends IRecordProcessor {
 
   override def initialize(input: InitializationInput): Unit = {
@@ -90,21 +90,22 @@ case class KinesisRecordProcessor[T](
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
     Logger.info(s"KinesisRecordProcessor workerId[$workerId] processRecords  stream[${config.streamName}] starting")
-    val all = input.getRecords.asScala
-    all.foreach { record =>
+    val kinesisRecords = input.getRecords.asScala
+    val flowRecords = input.getRecords.asScala.map { record =>
       val buffer = record.getData
       val bytes = Array.fill[Byte](buffer.remaining)(0)
       buffer.get(bytes)
 
-      val rec = Record.fromByteArray(
+      Record.fromByteArray(
         arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
         value = bytes
       )
-
-      f(rec)
     }
 
-    all.lastOption.foreach { record =>
+    f(flowRecords)
+
+
+    kinesisRecords.lastOption.foreach { record =>
       Logger.info(s"KinesisRecordProcessor workerId[$workerId] checkpoint(${record.getSequenceNumber})")
       input.getCheckpointer.checkpoint(record)
     }
