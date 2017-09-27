@@ -1,10 +1,11 @@
 package io.flow.event.v2
 
 import com.amazonaws.services.kinesis.AmazonKinesis
-import com.amazonaws.services.kinesis.model.PutRecordsRequest
+import com.amazonaws.services.kinesis.model.{PutRecordsRequest, PutRecordsResult}
 import org.apache.commons.io.Charsets
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers._
 import org.scalatest.mock.MockitoSugar
 import org.scalatest.{FlatSpec, Inspectors, Matchers}
 import play.api.libs.json.{JsValue, Json}
@@ -34,6 +35,9 @@ class KinesisProducerSpec extends FlatSpec with Matchers with MockitoSugar with 
   "KinesisProducer" should "publish one in batch" in {
     val streamConfig = mock[StreamConfig]
     val kinesisClient = mock[AmazonKinesis]
+    val mockPutResults = mock[PutRecordsResult]
+    when(mockPutResults.getFailedRecordCount).thenReturn(0)
+    when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer(streamConfig, numberShards = 1, partitionKeyFieldName = "p")
@@ -56,6 +60,9 @@ class KinesisProducerSpec extends FlatSpec with Matchers with MockitoSugar with 
 
     val streamConfig = mock[StreamConfig]
     val kinesisClient = mock[AmazonKinesis]
+    val mockPutResults = mock[PutRecordsResult]
+    when(mockPutResults.getFailedRecordCount).thenReturn(0)
+    when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer(streamConfig, numberShards = 1, partitionKeyFieldName = "p")

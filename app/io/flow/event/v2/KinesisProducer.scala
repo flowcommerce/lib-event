@@ -11,7 +11,7 @@ import play.api.libs.json.{JsValue, Json}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
-
+import scala.collection.JavaConverters._
 
 case class KinesisProducer(
   config: StreamConfig,
@@ -72,7 +72,17 @@ case class KinesisProducer(
 
       batchedRecords.foreach { batch =>
         val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(batch)
-        kinesisClient.putRecords(putRecordsRequest)
+        val response = kinesisClient.putRecords(putRecordsRequest)
+
+        // log errors
+        val failedRecordCount = response.getFailedRecordCount
+        if (failedRecordCount > 0) {
+          Logger.error(s"[FlowKinesisError] $failedRecordCount/${batch.size()} failed to be published")
+          response.getRecords.asScala.foreach { resultEntry =>
+            if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
+              Logger.error(s"[FlowKinesisError] $resultEntry")
+          }
+        }
       }
     }
   }
@@ -80,7 +90,6 @@ case class KinesisProducer(
   override def shutdown(implicit ec: ExecutionContext): Unit = {
     kinesisClient.shutdown()
   }
-
 
   /**
     * Sets up the stream name in ec2, either an error or Unit
