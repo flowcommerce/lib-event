@@ -98,7 +98,7 @@ case class KinesisProducer(
     }
   }
 
-  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry])(implicit ec: ExecutionContext) = {
+  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]) = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
     kinesisClient.putRecords(putRecordsRequest)
   }
