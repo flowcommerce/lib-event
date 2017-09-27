@@ -8,9 +8,10 @@ import io.flow.event.Util
 import play.api.Logger
 import play.api.libs.json.{JsValue, Json}
 
+import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Random, Success, Try}
 import scala.collection.JavaConverters._
 
 case class KinesisProducer(
@@ -70,21 +71,36 @@ case class KinesisProducer(
         }
       }
 
-      batchedRecords.foreach { batch =>
-        val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(batch)
-        val response = kinesisClient.putRecords(putRecordsRequest)
+      batchedRecords.foreach(publishBatchRetries(_, 1))
+    }
+  }
 
+  @tailrec
+  private def publishBatchRetries(entries: util.List[PutRecordsRequestEntry], attempts: Int): Unit = {
+    val response = doPublishBatch(entries)
+
+    val failedRecordCount = response.getFailedRecordCount
+    if (failedRecordCount > 0) {
+      if (attempts >= 3) {
         // log errors
-        val failedRecordCount = response.getFailedRecordCount
-        if (failedRecordCount > 0) {
-          Logger.error(s"[FlowKinesisError] $failedRecordCount/${batch.size()} failed to be published")
-          response.getRecords.asScala.foreach { resultEntry =>
-            if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
-              Logger.error(s"[FlowKinesisError] $resultEntry")
-          }
+        Logger.error(s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published")
+        response.getRecords.asScala.foreach { resultEntry =>
+          if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
+            Logger.error(s"[FlowKinesisError] $resultEntry")
         }
+      } else {
+        val toRetries =
+          entries.asScala.zip(response.getRecords.asScala)
+            .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
+        Thread.sleep((1 + Random.nextInt(5)) * attempts * 1000L)
+        publishBatchRetries(toRetries.asJava, attempts + 1)
       }
     }
+  }
+
+  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry])(implicit ec: ExecutionContext) = {
+    val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
+    kinesisClient.putRecords(putRecordsRequest)
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {

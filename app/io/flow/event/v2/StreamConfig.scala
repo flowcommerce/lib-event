@@ -20,9 +20,10 @@ case class StreamConfig(
       withCredentials(awSCredentialsProvider).
       withClientConfiguration(
         new ClientConfiguration()
-          .withMaxErrorRetry(5)
+          .withMaxErrorRetry(10)
+          .withMaxConsecutiveRetriesBeforeThrottling(1)
           .withThrottledRetries(true)
-          .withConnectionTTL(60000)
+          .withConnectionTTL(600000)
       ).
       build()
   }
