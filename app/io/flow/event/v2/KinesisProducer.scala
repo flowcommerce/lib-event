@@ -81,7 +81,7 @@ case class KinesisProducer(
 
     val failedRecordCount = response.getFailedRecordCount
     if (failedRecordCount > 0) {
-      if (attempts >= 3) {
+      if (attempts > MaxRetries) {
         // log errors
         Logger.error(s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published")
         response.getRecords.asScala.foreach { resultEntry =>
@@ -89,6 +89,9 @@ case class KinesisProducer(
             Logger.error(s"[FlowKinesisError] $resultEntry")
         }
       } else {
+        Logger.warn(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
+          s"Retrying $attempts/$MaxRetries ...")
+
         val toRetries =
           entries.asScala.zip(response.getRecords.asScala)
             .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
@@ -143,4 +146,5 @@ case class KinesisProducer(
 object KinesisProducer {
   val MaxBatchRecordsCount = 500
   val MaxBatchRecordsSizeBytes = 5 * 1024 * 1024
+  val MaxRetries = 3
 }
