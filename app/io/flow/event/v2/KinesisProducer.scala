@@ -30,12 +30,13 @@ case class KinesisProducer(
     val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
     val bytes = Json.stringify(event).getBytes("UTF-8")
 
-    publishRetries(
+    val record =
       new PutRecordRequest()
-        .withData(ByteBuffer.wrap(bytes))
-        .withPartitionKey(partitionKey)
-        .withStreamName(config.streamName), 1
-    )
+      .withData(ByteBuffer.wrap(bytes))
+      .withPartitionKey(partitionKey)
+      .withStreamName(config.streamName)
+
+    publishRetries(record, 1)
   }
 
   private def publishRetries(record: PutRecordRequest, attempts: Int): Unit = {
