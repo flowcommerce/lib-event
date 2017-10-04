@@ -15,6 +15,7 @@ lazy val root = project
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
+      "com.typesafe.play" %% "play-json" % "2.6.6",
       "io.flow" %% "lib-play" % "0.4.5",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.5",
       "org.scalatestplus" %% "play" % "1.4.0" % "test",
