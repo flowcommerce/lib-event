@@ -1,6 +1,6 @@
 import play.sbt.PlayScala._
 
-name := "lib-event"
+name := "lib-event-play-26"
 
 organization := "io.flow"
 
