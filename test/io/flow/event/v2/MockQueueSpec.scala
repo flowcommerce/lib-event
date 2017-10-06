@@ -1,11 +1,10 @@
 package io.flow.event.v2
 
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.{AtomicReference, LongAdder}
 
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
-import org.scalatest.Matchers
 import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -79,62 +78,11 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     }
   }
 
-  "shutdown consumers" in {
-    val q = new MockQueue()
-
-    // let's make sure the stream is empty
-    q.stream[TestEvent].pending mustBe empty
-
-    // produce an element every 3 ms
-    val producer = q.producer[TestEvent]()
-    val producerRunnable = new Runnable {
-      override def run(): Unit = publishTestObject(producer, testObject)
-    }
-    Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(producerRunnable, 0, 100, TimeUnit.MILLISECONDS)
-
-    // eventually stream should contain pending elements
-    eventuallyInNSeconds(2) {
-      q.stream[TestEvent].pending.size must be > 1
-    }
-
-    // consume every 1 ms
-    q.consume[TestEvent](_ => (), 1 milli)
-
-    // eventually, stream should be almost empty
-    eventuallyInNSeconds(5) {
-      q.stream[TestEvent].pending.size must be <= 1
-    }
-
-    q.shutdownConsumers
-
-    // eventually stream should not be almost empty any more
-    eventuallyInNSeconds(2) {
-      q.stream[TestEvent].pending.size must be > 1
-    }
-
-    // bring in 2 consumers on the same stream
-    q.consume[TestEvent](_ => (), 1 milli)
-    q.consume[TestEvent](_ => (), 1 milli)
-
-    eventuallyInNSeconds(5) {
-      q.stream[TestEvent].pending.size must be <= 1
-    }
-
-    q.shutdownConsumers
-
-    // eventually stream should not be almost empty any more
-    eventuallyInNSeconds(2) {
-      q.stream[TestEvent].pending.size must be > 1
-    }
-  }
-
   "clear the queue" in {
     val q = new MockQueue()
 
     val producer = q.producer[TestEvent]()
     1 to 10 foreach { _ => publishTestObject(producer, testObject) }
-
-    q.stream[TestEvent].pending must have size 10
 
     q.clear()
     q.stream[TestEvent].pending mustBe empty
