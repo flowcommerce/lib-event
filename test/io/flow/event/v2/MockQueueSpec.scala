@@ -45,6 +45,20 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     q.stream[TestEvent].findByEventId(eventId).get.eventId must equal(eventId)
   }
 
+  "adding a consumer immediately consumes all pending events" in {
+    val q = new MockQueue()
+    val producer = q.producer[TestEvent]()
+
+    publishTestObject(producer, testObject)
+    publishTestObject(producer, testObject)
+    var numberEvents = 0
+
+    q.consume[TestEvent] { _ =>
+      numberEvents += 1
+    }
+    numberEvents must equal(2)
+  }
+
   "produce and consume concurrently" in {
     val consumersPoolSize = 12
     val producersPoolSize = 24

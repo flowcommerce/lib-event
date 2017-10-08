@@ -78,6 +78,7 @@ case class MockStream() {
 
   def addConsumer(consumer: MockConsumer): Unit = {
     consumers.add(consumer)
+    consumeAllPending(consumer)
   }
 
   def publish(record: Record): Unit = {
@@ -87,17 +88,33 @@ case class MockStream() {
   }
 
   /**
-    * Consumes the next event in the stream, if any
+    * Consumes the next event in the stream, if there is an event
+    * and at least one consumer
     */
   def consume(): Option[Record] = {
     synchronized {
-      Option(pendingRecords.poll()).map { record =>
-        consumers.asScala.headOption.foreach { c =>
+      Option(pendingRecords.peek()) match {
+        case None => None
+        case Some(_) => consumers.asScala.headOption.map { c =>
+          val record = pendingRecords.remove()
           c.consume(record)
+          consumedRecords.add(record)
+          record
         }
-        consumedRecords.add(record)
-        record
       }
+    }
+  }
+
+  /**
+    * Consumes the next event in the stream, if any
+    */
+  private[this] def consumeAllPending(c: MockConsumer): Unit = {
+    synchronized {
+      pendingRecords.asScala.foreach { record =>
+        c.consume(record)
+        consumedRecords.add(record)
+      }
+      pendingRecords.clear()
     }
   }
 
