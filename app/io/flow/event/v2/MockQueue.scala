@@ -16,6 +16,7 @@ import scala.collection.JavaConverters._
 class MockQueue @Inject()() extends Queue {
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
+  private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
@@ -30,7 +31,9 @@ class MockQueue @Inject()() extends Queue {
   )(
     implicit ec: ExecutionContext
   ) {
-    stream[T].addConsumer(MockConsumer(f))
+    val s = stream[T]
+    val consumer = RunningConsumer(s, f, pollTime)
+    consumers.add(consumer)
   }
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
@@ -39,7 +42,10 @@ class MockQueue @Inject()() extends Queue {
   }
 
   override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
-    // No-op
+    synchronized {
+      consumers.asScala.foreach(_.shutdown())
+      consumers.clear()
+    }
   }
 
   def stream[T: TypeTag]: MockStream = {
@@ -62,11 +68,18 @@ class MockQueue @Inject()() extends Queue {
 
 }
 
-case class MockConsumer(action: Seq[Record] => Unit) {
+case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, pollTime: FiniteDuration) {
 
-  def consume(record: Record): Unit = {
-    action(Seq(record))
+  private val runnable = new Runnable() {
+    override def run(): Unit = stream.consume().foreach(e => action(Seq(e)))
   }
+
+  private val ses = Executors.newSingleThreadScheduledExecutor()
+  ses.scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
+
+  def shutdown(): Unit =
+    // use shutdownNow in case the provided action comes with a while-sleep loop.
+    ses.shutdownNow()
 
 }
 
@@ -74,47 +87,20 @@ case class MockStream() {
 
   private[this] val pendingRecords = new ConcurrentLinkedQueue[Record]()
   private[this] val consumedRecords = new ConcurrentLinkedQueue[Record]()
-  private[this] val consumers = new ConcurrentLinkedQueue[MockConsumer]()
-
-  def addConsumer(consumer: MockConsumer): Unit = {
-    consumers.add(consumer)
-    consumeAllPending(consumer)
-  }
 
   def publish(record: Record): Unit = {
     pendingRecords.add(record)
-    // consume immediately - we don't want to manage a thread pool in tests
-    consume()
-  }
-
-  /**
-    * Consumes the next event in the stream, if there is an event
-    * and at least one consumer
-    */
-  def consume(): Option[Record] = {
-    synchronized {
-      Option(pendingRecords.peek()) match {
-        case None => None
-        case Some(_) => consumers.asScala.headOption.map { c =>
-          val record = pendingRecords.remove()
-          c.consume(record)
-          consumedRecords.add(record)
-          record
-        }
-      }
-    }
   }
 
   /**
     * Consumes the next event in the stream, if any
     */
-  private[this] def consumeAllPending(c: MockConsumer): Unit = {
+  def consume(): Option[Record] = {
+    // synchronized for consistency between pending and consumed
     synchronized {
-      pendingRecords.asScala.foreach { record =>
-        c.consume(record)
-        consumedRecords.add(record)
-      }
-      pendingRecords.clear()
+      val r = Option(pendingRecords.poll())
+      r.foreach(consumedRecords.add)
+      r
     }
   }
 
