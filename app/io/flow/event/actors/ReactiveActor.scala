@@ -65,7 +65,7 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
   private[this] var nextProcess: Option[DateTime] = None
   private[this] case object Ping
   private[this] case object Poll
-  protected case object ProcessNow
+  private[this] case object ProcessNow
 
   override def receive = akka.event.LoggingReceive {
 
