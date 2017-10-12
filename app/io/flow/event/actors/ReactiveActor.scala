@@ -65,7 +65,8 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
   private[this] var nextProcess: Option[DateTime] = None
   private[this] case object Ping
   private[this] case object Poll
-  
+  protected case object ProcessNow
+
   override def receive = akka.event.LoggingReceive {
 
     case msg @ ReactiveActor.Messages.Changed => withErrorHandler(msg) {
@@ -80,26 +81,34 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
       nextProcess.foreach { ts =>
         if (ts.isBeforeNow) {
           nextProcess = None
-          Try {
-            process()
-          } match {
-            case Success(_) => // no-op
-            case Failure(ex) => {
-              ex.printStackTrace(System.err)
-              Logger.error(s"[${getClass.getName}] FlowEventError Error processing batch: ${ex.getMessage}", ex)
-            }
-          }
+          doProcess()
         }
       }
     }
+
+    case msg @ ProcessNow => withErrorHandler(msg)(doProcess())
 
     case msg: Any => logUnhandledMessage(msg)
 
   }
 
+  private def doProcess() = {
+    Try {
+      process()
+    } match {
+      case Success(_) => // no-op
+      case Failure(ex) => {
+        ex.printStackTrace(System.err)
+        Logger.error(s"[${getClass.getName}] FlowEventError Error processing batch: ${ex.getMessage}", ex)
+      }
+    }
+  }
+
+  protected final def processNow() = self ! ProcessNow
+
   def setNextProcess() {
     if (nextProcess.isEmpty) {
-      nextProcess = Some((DateTime.now).plusMillis(quietTimeMs))
+      nextProcess = Some(DateTime.now.plusMillis(quietTimeMs))
     }
   }
 
