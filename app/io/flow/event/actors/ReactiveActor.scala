@@ -12,9 +12,6 @@ import scala.util.{Failure, Success, Try}
 object ReactiveActor {
   object Messages {
     case object Changed
-    case object Ping
-    case object Poll
-    case object ProcessNow
   }
 
 }
@@ -69,6 +66,8 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
   }
 
   private[this] var nextProcess: Option[DateTime] = None
+  private[this] case object Ping
+  private[this] case object Poll
 
   override def receive = akka.event.LoggingReceive {
 
@@ -89,10 +88,6 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
       }
     }
 
-    case msg @ ProcessNow => withErrorHandler(msg) {
-      doProcess()
-    }
-
     case msg: Any => logUnhandledMessage(msg)
 
   }
@@ -108,8 +103,6 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
       }
     }
   }
-
-  protected final def processNow() = self ! ProcessNow
 
   def setNextProcess() {
     if (nextProcess.isEmpty) {
