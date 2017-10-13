@@ -12,9 +12,9 @@ import scala.util.{Failure, Success, Try}
 object ReactiveActor {
   object Messages {
     case object Changed
-    private[ReactiveActor] case object Ping
-    private[ReactiveActor] case object Poll
-    private[ReactiveActor] case object ProcessNow
+    case object Ping
+    case object Poll
+    case object ProcessNow
   }
 
 }
