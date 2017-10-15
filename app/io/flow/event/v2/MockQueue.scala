@@ -132,6 +132,11 @@ case class MockStream() {
 
 case class MockProducer(stream: MockStream) extends Producer {
 
+  override def publish[T](event: T)
+                         (implicit ec: ExecutionContext, serializer:  play.api.libs.json.Writes[T]): Unit = {
+    publish(serializer.writes(event))
+  }
+
   def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
     stream.publish(
       Record.fromJsValue(

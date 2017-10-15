@@ -38,7 +38,14 @@ trait Producer {
 
   def publish(event: JsValue)(implicit ec: ExecutionContext): Unit
 
+  def publish[T](event: T)
+                (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[T]): Unit
+
   def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = events.foreach(publish)
+
+  def publishBatch[T](events: Seq[T])
+                     (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[T]): Unit =
+    events.foreach(publish[T])
 
   def shutdown(implicit ec: ExecutionContext): Unit
 

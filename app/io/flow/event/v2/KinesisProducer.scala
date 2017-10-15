@@ -26,6 +26,12 @@ case class KinesisProducer(
 
   setup()
 
+  override def publish[T](event: T)
+                         (implicit ec: ExecutionContext,
+                          serializer:  play.api.libs.json.Writes[T]): Unit = {
+    publish(serializer.writes(event))
+  }
+
   override def publish(event: JsValue)(implicit ec: ExecutionContext) {
     val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
     val bytes = Json.stringify(event).getBytes("UTF-8")
@@ -160,6 +166,8 @@ case class KinesisProducer(
       }
     }
   }
+
+
 }
 
 object KinesisProducer {
