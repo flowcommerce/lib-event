@@ -160,6 +160,8 @@ case class KinesisProducer(
       }
     }
   }
+
+
 }
 
 object KinesisProducer {
