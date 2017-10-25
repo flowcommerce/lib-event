@@ -16,7 +16,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       "io.flow" %% "lib-play" % "0.4.8",
-      "com.amazonaws" % "amazon-kinesis-client" % "1.8.5",
+      "com.amazonaws" % "amazon-kinesis-client" % "1.8.7",
       "org.scalatestplus" %% "play" % "1.4.0" % "test",
       "org.mockito" % "mockito-core" % "2.11.0" % "test"
     ),
