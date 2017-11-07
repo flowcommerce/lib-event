@@ -18,7 +18,7 @@ lazy val root = project
       "io.flow" %% "lib-play" % "0.4.10",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.7",
       "org.scalatestplus" %% "play" % "1.4.0" % "test",
-      "org.mockito" % "mockito-core" % "2.11.0" % "test"
+      "org.mockito" % "mockito-core" % "2.12.0" % "test"
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
