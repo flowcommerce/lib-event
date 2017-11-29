@@ -4,9 +4,9 @@ name := "lib-event"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.11.11"
+scalaVersion in ThisBuild := "2.11.12"
 
-crossScalaVersions := Seq("2.11.11")
+crossScalaVersions := Seq("2.11.12")
 
 lazy val root = project
   .in(file("."))
