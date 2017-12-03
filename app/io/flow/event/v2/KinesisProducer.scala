@@ -42,10 +42,9 @@ case class KinesisProducer(
   private def publishRetries(record: PutRecordRequest, attempts: Int): Unit = {
     Try(doPublish(record))
       .recover {
-        case _: ProvisionedThroughputExceededException if attempts <= MaxRetries =>
-          Logger.warn(s"[FlowKinesisWarn] record failed to be published. " +
-            s"Retrying $attempts/$MaxRetries ...")
-          Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
+        case ex @ (_: ProvisionedThroughputExceededException | _: KMSThrottlingException) if attempts <= MaxRetries =>
+          Logger.warn(s"[FlowKinesisWarn] record failed to be published. Retrying $attempts/$MaxRetries ...", ex)
+          waitBeforeRetry(attempts)
           publishRetries(record, attempts + 1)
         case e => Logger.error("[FlowKinesisError] record failed to be published", e)
       }.get // open the pandora box
@@ -92,33 +91,42 @@ case class KinesisProducer(
 
   @tailrec
   private def publishBatchRetries(entries: util.List[PutRecordsRequestEntry], attempts: Int): Unit = {
-    val response = doPublishBatch(entries)
+    Try(doPublishBatch(entries)) match {
+      case Success(response) =>
+        val failedRecordCount = response.getFailedRecordCount
+        if (failedRecordCount > 0) {
+          if (attempts > MaxRetries) {
+            // log errors
+            val errorMessage = s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published"
+            Logger.error(errorMessage)
+            response.getRecords.asScala.foreach { resultEntry =>
+              if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
+                Logger.error(s"[FlowKinesisError] $resultEntry")
+            }
 
-    val failedRecordCount = response.getFailedRecordCount
-    if (failedRecordCount > 0) {
-      if (attempts > MaxRetries) {
-        // log errors
-        val errorMessage = s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published"
-        Logger.error(errorMessage)
-        response.getRecords.asScala.foreach { resultEntry =>
-          if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
-            Logger.error(s"[FlowKinesisError] $resultEntry")
+            sys.error(errorMessage)
+          } else {
+            Logger.warn(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
+              s"Retrying $attempts/$MaxRetries ...")
+
+            val toRetries =
+              entries.asScala.zip(response.getRecords.asScala)
+                .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
+            waitBeforeRetry(attempts)
+            publishBatchRetries(toRetries.asJava, attempts + 1)
+          }
         }
 
-        sys.error(errorMessage)
+      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
+        Logger.warn(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
+        waitBeforeRetry(attempts)
+        publishBatchRetries(entries, attempts + 1)
 
-      } else {
-        Logger.warn(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
-          s"Retrying $attempts/$MaxRetries ...")
-
-        val toRetries =
-          entries.asScala.zip(response.getRecords.asScala)
-            .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
-        Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
-        publishBatchRetries(toRetries.asJava, attempts + 1)
-      }
+      case Failure(ex) => throw ex
     }
   }
+
+  private def waitBeforeRetry(attempts: Int) = Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
@@ -165,8 +173,12 @@ case class KinesisProducer(
 }
 
 object KinesisProducer {
+  
   val MaxBatchRecordsCount = 500
-  val MaxBatchRecordsSizeBytes = 5 * 1024 * 1024
+
+  // 5 MB, counted in decimal as not sure how AWS counts
+  // - 100 kB as an arbitrary margin to avoid errors (2% of 5MB - not a big difference)
+  val MaxBatchRecordsSizeBytes: Long = 5L * 1000 * 1000 - 100L * 1000
 
   // Let's really retry!
   val MaxRetries = 10
