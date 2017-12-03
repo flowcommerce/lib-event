@@ -74,7 +74,7 @@ case class KinesisProducer(
 
         // did the current batch reach one of the limitations?
         val newBytesSize = currentBytesSize + data.length
-        if (currentSize == MaxBatchRecordsCount || newBytesSize >= MaxBatchRecordsSizeBytes) {
+        if (currentSize == MaxBatchRecordsCount || newBytesSize > MaxBatchRecordsSizeBytes) {
           val newBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
           batchedRecords += newBatch
           newBatch.add(record)
