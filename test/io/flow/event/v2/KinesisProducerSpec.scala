@@ -69,8 +69,8 @@ class KinesisProducerSpec extends FlatSpec with Matchers with MockitoSugar with 
 
     val events = {
       (1 to 500).map(_ => generateJson()) ++
-        // limit is 5 * 1024 * 1024 so let's generate 5 events of size 1024 * 1024
-        (1 to 5).map(_ => generateJson(bytes = 1024 * 1024)) ++
+        // limit is 5MB - 100kB so let's generate 5 events of size (5MB - 100kB) / 5
+        (1 to 5).map(_ => generateJson(bytes = KinesisProducer.MaxBatchRecordsSizeBytes.toInt / 5)) ++
         (1 to 500).map(_ => generateJson()) ++
         (1 to 100).map(_ => generateJson())
     }
