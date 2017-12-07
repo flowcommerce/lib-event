@@ -13,6 +13,7 @@ object ReactiveActor {
   object Messages {
     case object Changed
   }
+
 }
 
 /**
@@ -31,6 +32,8 @@ object ReactiveActor {
   *     or just rely on Poll
   */
 trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
+
+  import ReactiveActor.Messages._
 
   def system: ActorSystem
 
@@ -65,10 +68,10 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
   private[this] var nextProcess: Option[DateTime] = None
   private[this] case object Ping
   private[this] case object Poll
-  
+
   override def receive = akka.event.LoggingReceive {
 
-    case msg @ ReactiveActor.Messages.Changed => withErrorHandler(msg) {
+    case msg @ Changed => withErrorHandler(msg) {
       setNextProcess()
     }
 
@@ -80,15 +83,7 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
       nextProcess.foreach { ts =>
         if (ts.isBeforeNow) {
           nextProcess = None
-          Try {
-            process()
-          } match {
-            case Success(_) => // no-op
-            case Failure(ex) => {
-              ex.printStackTrace(System.err)
-              Logger.error(s"[${getClass.getName}] FlowEventError Error processing batch: ${ex.getMessage}", ex)
-            }
-          }
+          doProcess()
         }
       }
     }
@@ -97,9 +92,21 @@ trait ReactiveActor extends Actor with ActorLogging with ErrorHandler {
 
   }
 
+  private def doProcess() = {
+    Try {
+      process()
+    } match {
+      case Success(_) => // no-op
+      case Failure(ex) => {
+        ex.printStackTrace(System.err)
+        Logger.error(s"[${getClass.getName}] FlowEventError Error processing batch: ${ex.getMessage}", ex)
+      }
+    }
+  }
+
   def setNextProcess() {
     if (nextProcess.isEmpty) {
-      nextProcess = Some((DateTime.now).plusMillis(quietTimeMs))
+      nextProcess = Some(DateTime.now.plusMillis(quietTimeMs))
     }
   }
 
