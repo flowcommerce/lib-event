@@ -1,6 +1,6 @@
 import play.sbt.PlayScala._
 
-name := "lib-event-play-26"
+name := "lib-event"
 
 organization := "io.flow"
 
@@ -40,4 +40,4 @@ publishTo := {
     Some("Artifactory Realm" at s"$host/libs-release-local")
   }
 }
-version := "0.2.81"
+version := "0.2.82"
