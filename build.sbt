@@ -1,12 +1,12 @@
-import play.PlayImport.PlayKeys._
+import play.sbt.PlayScala._
 
 name := "lib-event"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.11.12"
+scalaVersion in ThisBuild := "2.12.4"
 
-crossScalaVersions := Seq("2.11.12")
+crossScalaVersions := Seq("2.11.12", "2.12.4")
 
 lazy val root = project
   .in(file("."))
@@ -15,10 +15,11 @@ lazy val root = project
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
-      "io.flow" %% "lib-play" % "0.4.15",
+      guice,
+      "io.flow" %% "lib-play" % "0.4.21-play26",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.8",
-      "org.scalatestplus" %% "play" % "1.4.0" % "test",
-      "org.mockito" % "mockito-core" % "2.13.0" % "test"
+      "org.mockito" % "mockito-core" % "2.13.0" % Test,
+      "io.flow" %% "lib-test-utils" % "0.0.3" % Test
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
@@ -30,7 +31,7 @@ lazy val root = project
       System.getenv("ARTIFACTORY_PASSWORD")
     ),
     javaOptions in Test += "-Dconfig.file=conf/test.conf"
-)
+  )
 
 publishTo := {
   val host = "https://flow.artifactoryonline.com/flow"

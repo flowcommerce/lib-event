@@ -1,15 +1,20 @@
 package main
 
-/*import (
+import (
 	"github.com/flowcommerce/tools/executor"
-)*/
+)
 
 func main() {
-  println("This is an experimental branch. Do this instead: https://www.notion.so/flow/Publish-an-experimental-library-f9de8cfb7a904af4b873641937601ca0")
-        /*
-        executor := executor.Create("lib-event-play-2.6")
-        executor = executor.Add("dev tag")
-	executor = executor.Add("sbt +publish")
-	executor.Run()
-        */
+  executor := executor.Create("lib-event")
+  //TODO: remove after merge to master
+  executor = executor.Add("git clone git@github.com:flowcommerce/misc.git")
+  executor = executor.Add("cp misc/publish_branch/publish_branch.sh .")
+  executor = executor.Add("chmod +x publish_branch.sh")
+  executor = executor.Add("rm -rf misc")
+  executor = executor.Add("./publish_branch.sh")
+  executor = executor.Add("rm publish_branch.sh")
+  //TODO: uncomment after merge to master
+  //executor = executor.Add("dev tag")
+  //executor = executor.Add("sbt +publish")
+  executor.Run()
 }
