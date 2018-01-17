@@ -17,7 +17,7 @@ lazy val root = project
       ws,
       guice,
       "io.flow" %% "lib-play" % "0.4.21-play26",
-      "com.amazonaws" % "amazon-kinesis-client" % "1.8.8",
+      "com.amazonaws" % "amazon-kinesis-client" % "1.8.9",
       "org.mockito" % "mockito-core" % "2.13.0" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.3" % Test
     ),
@@ -41,4 +41,4 @@ publishTo := {
     Some("Artifactory Realm" at s"$host/libs-release-local")
   }
 }
-version := "0.2.84"
+version := "0.2.86"
