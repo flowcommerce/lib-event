@@ -1,6 +1,6 @@
 import play.sbt.PlayScala._
 
-name := "lib-event"
+name := "lib-event-play26"
 
 organization := "io.flow"
 
@@ -16,7 +16,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-play" % "0.4.21-play26",
+      "io.flow" %% "lib-play-play26" % "0.4.25",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.9",
       "org.mockito" % "mockito-core" % "2.13.0" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.3" % Test
