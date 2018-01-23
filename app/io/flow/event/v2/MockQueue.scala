@@ -21,7 +21,7 @@ class MockQueue @Inject()() extends Queue {
   override def producer[T: TypeTag](
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
-  ): Producer = {
+  ): Producer[T] = {
     MockProducer(stream[T])
   }
 
@@ -125,12 +125,12 @@ case class MockStream() {
   def pending: Seq[Record] = pendingRecords.asScala.toSeq
   def consumed: Seq[Record] = consumedRecords.asScala.toSeq
 
-  def clearPending() = pendingRecords.clear()
-  def clearConsumed() = consumedRecords.clear()
+  def clearPending(): Unit = pendingRecords.clear()
+  def clearConsumed(): Unit = consumedRecords.clear()
 
 }
 
-case class MockProducer(stream: MockStream) extends Producer {
+case class MockProducer[T](stream: MockStream) extends Producer[T] {
 
   private def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
     stream.publish(
@@ -141,7 +141,7 @@ case class MockProducer(stream: MockStream) extends Producer {
     )
   }
 
-  override def publish[T](event: T)(implicit ec: ExecutionContext, serializer: Writes[T]): Unit =
+  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
     publish(serializer.writes(event))
 
   def shutdown(implicit ec: ExecutionContext): Unit = {}
