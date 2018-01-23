@@ -36,12 +36,14 @@ trait Queue {
 
 trait Producer {
 
+  @deprecated("For type safety use publish[T](event: T)")
   def publish(event: JsValue)(implicit ec: ExecutionContext): Unit
 
   def publish[T](event: T)
                 (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[T]): Unit =
     publish(serializer.writes(event))
 
+  @deprecated("For type safety use publishBatch[T](events: Seq[T])")
   def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = events.foreach(publish)
 
   def publishBatch[T](events: Seq[T])
