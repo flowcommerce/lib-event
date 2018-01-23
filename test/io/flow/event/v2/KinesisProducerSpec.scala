@@ -1,7 +1,10 @@
 package io.flow.event.v2
 
+import java.nio.charset.Charset
+
 import com.amazonaws.services.kinesis.AmazonKinesis
 import com.amazonaws.services.kinesis.model.{PutRecordsRequest, PutRecordsResult}
+import io.flow.lib.event.test.v0.models.TestEvent
 import org.apache.commons.io.Charsets
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito._
@@ -15,7 +18,7 @@ import scala.util.Random
 
 class KinesisProducerSpec extends FlatSpec with Matchers with MockitoSugar with Inspectors {
 
-  val utf8 = Charsets.UTF_8
+  val utf8: Charset = Charsets.UTF_8
 
   def generateJson(partitionKey: String = "p", bytes: Int = 20): JsValue = {
     val fixedSize = 7  // size of: {"":""}
@@ -40,7 +43,7 @@ class KinesisProducerSpec extends FlatSpec with Matchers with MockitoSugar with 
     when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
-    val producer = new KinesisProducer(streamConfig, numberShards = 1, partitionKeyFieldName = "p")
+    val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "p")
 
     val json = generateJson()
     producer.publishBatch(Seq(json))

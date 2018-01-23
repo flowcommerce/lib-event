@@ -14,11 +14,11 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Random, Success, Try}
 import scala.collection.JavaConverters._
 
-case class KinesisProducer(
+case class KinesisProducer[T](
   config: StreamConfig,
   numberShards: Int,
   partitionKeyFieldName: String
-) extends Producer {
+) extends Producer[T] {
 
   import KinesisProducer._
 
@@ -39,7 +39,7 @@ case class KinesisProducer(
     publishRetries(record, 1)
   }
 
-  override def publish[T](event: T)(implicit ec: ExecutionContext, serializer: Writes[T]): Unit =
+  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
     publish(serializer.writes(event))
 
   private def publishRetries(record: PutRecordRequest, attempts: Int): Unit = {
@@ -62,7 +62,7 @@ case class KinesisProducer(
     * "Each PutRecords request can support up to 500 records. Each record in the request can be as large as 1 MB, up to
     * a limit of 5 MB for the entire request, including partition keys."
     */
-  override def publishBatch[T](events: Seq[T])(implicit ec: ExecutionContext, serializer: Writes[T]): Unit = {
+  override def publishBatch[U <: T](events: Seq[U])(implicit ec: ExecutionContext, serializer: Writes[U]): Unit = {
     // Make sure that there are events: AWS will complain otherwise
     if (events.nonEmpty) {
       val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
@@ -130,7 +130,7 @@ case class KinesisProducer(
     }
   }
 
-  private def waitBeforeRetry(attempts: Int) = Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
+  private def waitBeforeRetry(attempts: Int): Unit = Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
