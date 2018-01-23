@@ -5,7 +5,7 @@ import javax.inject.{Inject, Singleton}
 
 import io.flow.event.{Record, StreamNames}
 import org.joda.time.DateTime
-import play.api.libs.json.JsValue
+import play.api.libs.json.{JsValue, Writes}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
@@ -132,7 +132,7 @@ case class MockStream() {
 
 case class MockProducer(stream: MockStream) extends Producer {
 
-  def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
+  private def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
     stream.publish(
       Record.fromJsValue(
         arrivalTimestamp = DateTime.now,
@@ -140,6 +140,9 @@ case class MockProducer(stream: MockStream) extends Producer {
       )
     )
   }
+
+  override def publish[T](event: T)(implicit ec: ExecutionContext, serializer: Writes[T]): Unit =
+    publish(serializer.writes(event))
 
   def shutdown(implicit ec: ExecutionContext): Unit = {}
 
