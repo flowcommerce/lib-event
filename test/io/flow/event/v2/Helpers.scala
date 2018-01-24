@@ -2,7 +2,7 @@ package io.flow.event.v2
 
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.json._
-import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
+import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.play.clients.MockConfig
 import io.flow.play.util.{Config, IdGenerator}
 import org.joda.time.DateTime
@@ -33,15 +33,13 @@ trait Helpers {
     f(config)
   }
 
-  def publishTestObject(producer: Producer, o: TestObject): String = {
+  def publishTestObject(producer: Producer[TestEvent], o: TestObject): String = {
     val eventId = eventIdGenerator.randomId()
     producer.publish(
-      Json.toJson(
-        TestObjectUpserted(
-          eventId = eventId,
-          timestamp = DateTime.now,
-          testObject = o
-        )
+      TestObjectUpserted(
+        eventId = eventId,
+        timestamp = DateTime.now,
+        testObject = o
       )
     )
     eventId

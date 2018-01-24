@@ -17,7 +17,7 @@ trait Queue {
   def producer[T: TypeTag](
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
-  ): Producer
+  ): Producer[T]
 
   /**
     * Creates a thread that will poll kinesis on the specified interval,
@@ -34,19 +34,13 @@ trait Queue {
 
 }
 
-trait Producer {
+trait Producer[T] {
 
-  def publish(event: JsValue)(implicit ec: ExecutionContext): Unit
+  def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[U]): Unit
 
-  def publish[T](event: T)
-                (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[T]): Unit =
-    publish(serializer.writes(event))
-
-  def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = events.foreach(publish)
-
-  def publishBatch[T](events: Seq[T])
-                     (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[T]): Unit =
-    events.foreach(publish[T])
+  def publishBatch[U <: T](events: Seq[U])
+                     (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[U]): Unit =
+    events.foreach(publish[U])
 
   def shutdown(implicit ec: ExecutionContext): Unit
 
@@ -69,7 +63,7 @@ class DefaultQueue @Inject() (
   override def producer[T: TypeTag](
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
-  ): Producer = {
+  ): Producer[T] = {
     KinesisProducer(
       streamConfig[T],
       numberShards,

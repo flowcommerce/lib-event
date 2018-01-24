@@ -6,7 +6,7 @@ import java.util
 import com.amazonaws.services.kinesis.model._
 import io.flow.event.Util
 import play.api.Logger
-import play.api.libs.json.{JsValue, Json}
+import play.api.libs.json.{JsValue, Json, Writes}
 
 import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
@@ -14,11 +14,11 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Random, Success, Try}
 import scala.collection.JavaConverters._
 
-case class KinesisProducer(
+case class KinesisProducer[T](
   config: StreamConfig,
   numberShards: Int,
   partitionKeyFieldName: String
-) extends Producer {
+) extends Producer[T] {
 
   import KinesisProducer._
 
@@ -26,7 +26,7 @@ case class KinesisProducer(
 
   setup()
 
-  override def publish(event: JsValue)(implicit ec: ExecutionContext) {
+  private def publish(event: JsValue)(implicit ec: ExecutionContext) {
     val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
     val bytes = Json.stringify(event).getBytes("UTF-8")
 
@@ -38,6 +38,9 @@ case class KinesisProducer(
 
     publishRetries(record, 1)
   }
+
+  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
+    publish(serializer.writes(event))
 
   private def publishRetries(record: PutRecordRequest, attempts: Int): Unit = {
     Try(doPublish(record))
@@ -59,15 +62,16 @@ case class KinesisProducer(
     * "Each PutRecords request can support up to 500 records. Each record in the request can be as large as 1 MB, up to
     * a limit of 5 MB for the entire request, including partition keys."
     */
-  override def publishBatch(events: Seq[JsValue])(implicit ec: ExecutionContext): Unit = {
+  override def publishBatch[U <: T](events: Seq[U])(implicit ec: ExecutionContext, serializer: Writes[U]): Unit = {
     // Make sure that there are events: AWS will complain otherwise
     if (events.nonEmpty) {
       val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
       val firstBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
       batchedRecords += firstBatch
 
-      events.foldLeft((0L, 0L, firstBatch)) { case ((currentSize, currentBytesSize, currentBatch), event) =>
+      events.foldLeft((0L, 0L, firstBatch)) { case ((currentSize, currentBytesSize, currentBatch), evt) =>
         // convert to [[PutRecordsRequestEntry]]
+        val event = serializer.writes(evt)
         val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
         val data = Json.stringify(event).getBytes("UTF-8")
         val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
@@ -126,7 +130,7 @@ case class KinesisProducer(
     }
   }
 
-  private def waitBeforeRetry(attempts: Int) = Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
+  private def waitBeforeRetry(attempts: Int): Unit = Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
@@ -168,7 +172,6 @@ case class KinesisProducer(
       }
     }
   }
-
 
 }
 
