@@ -41,3 +41,4 @@ publishTo := {
   }
 }
 version := "0.2.93"
+version := "0.2.93"
