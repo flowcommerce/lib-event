@@ -18,6 +18,8 @@ lazy val root = project
       guice,
       "io.flow" %% "lib-play-play26" % "0.4.25",
       "com.amazonaws" % "amazon-kinesis-client" % "1.8.9",
+      // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
+      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.8.11",
       "org.mockito" % "mockito-core" % "2.13.0" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.3" % Test
     ),
