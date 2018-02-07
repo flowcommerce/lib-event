@@ -4,4 +4,5 @@ logLevel := Level.Warn
 credentials += Credentials(Path.userHome / ".ivy2" / ".artifactory")
 
 // Use the Play sbt plugin for Play projects
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.4.11")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.6.11")
+
