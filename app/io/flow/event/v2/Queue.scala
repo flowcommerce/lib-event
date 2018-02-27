@@ -46,6 +46,7 @@ trait Producer[T] {
 
 }
 
+
 /**
   * Builds our default producer/consumer. Requires the following config
   * variables to be set:
@@ -54,7 +55,7 @@ trait Producer[T] {
   */
 class DefaultQueue @Inject() (
   config: Config
-) extends Queue {
+) extends Queue with StreamUsage {
 
   import scala.collection.JavaConverters._
 
@@ -64,6 +65,7 @@ class DefaultQueue @Inject() (
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
+    markProduced[T]()
     KinesisProducer(
       streamConfig[T],
       numberShards,
@@ -75,6 +77,7 @@ class DefaultQueue @Inject() (
      f: Seq[Record] => Unit,
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   )(implicit ec: ExecutionContext) {
+    markConsumed[T]()
     consumers.add(
       KinesisConsumer(
         streamConfig[T],

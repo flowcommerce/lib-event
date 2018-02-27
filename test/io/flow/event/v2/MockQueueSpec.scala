@@ -18,7 +18,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
   private[this] val testObject = TestObject(id = "1")
 
   "all" in {
-    val q = new MockQueue()
+    val q = new MockStream()
     val producer = q.producer[TestEvent]()
     val stream = q.stream[TestEvent]
 
@@ -39,7 +39,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
   }
 
   "consumeEventId" in {
-    val q = new MockQueue()
+    val q = new MockStream()
     val producer = q.producer[TestEvent]()
 
     val eventId = publishTestObject(producer, testObject)
@@ -54,7 +54,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
     val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
     val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
 
-    val q = new MockQueue()
+    val q = new MockStream()
     val producer = q.producer[TestEvent]()
 
     val count = new LongAdder()
@@ -80,7 +80,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
   }
 
   "shutdown consumers" in {
-    val q = new MockQueue()
+    val q = new MockStream()
 
     // let's make sure the stream is empty
     q.stream[TestEvent].pending mustBe empty
@@ -129,7 +129,7 @@ class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
   }
 
   "clear the queue" in {
-    val q = new MockQueue()
+    val q = new MockStream()
 
     val producer = q.producer[TestEvent]()
     1 to 10 foreach { _ => publishTestObject(producer, testObject) }

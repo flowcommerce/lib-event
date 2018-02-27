@@ -13,7 +13,7 @@ import scala.reflect.runtime.universe._
 import scala.collection.JavaConverters._
 
 @Singleton
-class MockQueue @Inject()() extends Queue {
+class MockQueue @Inject()() extends Queue with StreamUsage {
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
@@ -22,6 +22,7 @@ class MockQueue @Inject()() extends Queue {
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
+    markProduced[T]()
     MockProducer(stream[T])
   }
 
@@ -33,6 +34,7 @@ class MockQueue @Inject()() extends Queue {
   ) {
     val s = stream[T]
     val consumer = RunningConsumer(s, f, pollTime)
+    markConsumed[T]()
     consumers.add(consumer)
   }
 
