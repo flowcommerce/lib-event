@@ -10,7 +10,7 @@ import scala.reflect.runtime.universe._
   *
   * Note that while consumers are generally set up at application start up [via DI], producers may be started on the
   * fly. Thus the model of how producers are used may expand over the life of a service instance, for example giving a
-  * different answer after an hour's usage
+  * different answer after an hour's usage than at application startup.
   *
   */
 trait StreamUsage {
@@ -54,4 +54,8 @@ case class StreamUsed (
   eventClass: Type,
   consumed: Boolean = false,
   produced: Boolean = false
-)
+) {
+  private val apid = StreamNames.parse(streamName)
+  val serviceName = apid.get.service
+  val specName = apid.get.name
+}
