@@ -111,7 +111,7 @@ class DefaultQueue @Inject() (
   )
 
   private[this] def streamConfig[T: TypeTag] = {
-    StreamConfig(
+    DefaultStreamConfig(
       awsCredentials,
       appName = config.requiredString("name"),
       streamName = streamName[T]
