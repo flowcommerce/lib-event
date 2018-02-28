@@ -1,5 +1,8 @@
 package io.flow.event.v2
 
+import javax.print.DocFlavor.STRING
+
+import akka.http.scaladsl.model.headers.CacheDirectives.public
 import io.flow.event.{StreamNames, Util}
 
 import scala.collection.concurrent
@@ -20,8 +23,7 @@ trait StreamUsage {
     StreamNames.fromType[T] match {
       case Left(errors) => sys.error(errors.mkString(", "))
       case Right(name) => {
-        val usage = usageMap.getOrElse(name, StreamUsed(name, typeOf[T]))
-        println(name)
+        val usage = usageMap.getOrElseUpdate(name, StreamUsed(name, typeOf[T]))
         usageMap.put(name, usage.copy(produced = true))
       }
     }
@@ -31,8 +33,7 @@ trait StreamUsage {
     StreamNames.fromType[T] match {
       case Left(errors) => sys.error(errors.mkString(", "))
       case Right(name) => {
-        val usage = usageMap.getOrElse(name, StreamUsed(name, typeOf[T]))
-        println(name)
+        val usage = usageMap.getOrElseUpdate(name, StreamUsed(name, typeOf[T]))
         usageMap.put(name, usage.copy(consumed = true))
       }
     }
@@ -52,10 +53,21 @@ object StreamUsage {
 case class StreamUsed (
   streamName: String,
   eventClass: Type,
+  serviceName: String,
+  specName: String,
   consumed: Boolean = false,
   produced: Boolean = false
-) {
-  private val apid = StreamNames.parse(streamName)
-  val serviceName = apid.get.service
-  val specName = apid.get.name
+)
+object StreamUsed {
+  def apply(streamName: String, eventClass: Type): StreamUsed = {
+    val (serviceName, specName) = StreamNames.parse(eventClass.toString) match {
+      case Some(apid) => (apid.service, apid.name)
+      case None => ("", "")
+    }
+    new StreamUsed(streamName,
+      eventClass,
+      serviceName = serviceName,
+      specName = specName
+    )
+  }
 }
