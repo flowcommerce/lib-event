@@ -40,7 +40,7 @@ case class KinesisConsumer (
       new KinesisClientLibConfiguration(
         config.appName,
         config.streamName,
-        config.awSCredentialsProvider,
+        config.awsCredentialsProvider,
         workerId
       ).withTableName(config.dynamoTableName)
         .withInitialLeaseTableReadCapacity(dynamoCapacity)
