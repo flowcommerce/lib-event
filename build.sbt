@@ -20,7 +20,7 @@ lazy val root = project
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.0",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.4",
-      "org.mockito" % "mockito-core" % "2.15.0" % Test,
+      "org.mockito" % "mockito-core" % "2.16.0" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.6" % Test
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
