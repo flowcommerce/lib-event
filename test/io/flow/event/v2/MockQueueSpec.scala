@@ -5,13 +5,13 @@ import java.util.concurrent.atomic.{AtomicReference, LongAdder}
 
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
-import org.scalatest.Matchers
-import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
+import org.scalatestplus.play.guice.GuiceOneAppPerSuite
+import org.scalatestplus.play.PlaySpec
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
-class MockQueueSpec extends PlaySpec with OneAppPerSuite with Helpers {
+class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
