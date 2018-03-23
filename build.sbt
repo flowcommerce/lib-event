@@ -21,7 +21,7 @@ lazy val root = project
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.4",
       "org.mockito" % "mockito-core" % "2.16.0" % Test,
-      "io.flow" %% "lib-test-utils" % "0.0.6" % Test
+      "io.flow" %% "lib-test-utils" % "0.0.7" % Test
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
