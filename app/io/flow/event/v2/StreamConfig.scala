@@ -1,6 +1,7 @@
 package io.flow.event.v2
 
 import com.amazonaws.ClientConfiguration
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 import io.flow.event.Naming
 
@@ -9,6 +10,7 @@ trait StreamConfig {
   val streamName: String
   val maxRecords: Int
   val idleTimeBetweenReadsInMillis: Int
+  val awsCredentialsProvider: AWSCredentialsProvider
 
   def kinesisClient: AmazonKinesis
 
@@ -21,6 +23,7 @@ trait StreamConfig {
 }
 
 case class DefaultStreamConfig(
+  awsCredentialsProvider: AWSCreds,
   appName: String,
   streamName: String,
   maxRecords: Int = 1000,   // number of records in each fetch
@@ -29,6 +32,7 @@ case class DefaultStreamConfig(
 
   override def kinesisClient: AmazonKinesis = {
     AmazonKinesisClientBuilder.standard().
+      withCredentials(awsCredentialsProvider).
       withClientConfiguration(
         new ClientConfiguration()
           .withMaxErrorRetry(10)

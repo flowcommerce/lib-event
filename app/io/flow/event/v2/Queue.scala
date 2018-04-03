@@ -51,7 +51,8 @@ trait Producer[T] {
   * Builds our default producer/consumer
   */
 class DefaultQueue @Inject() (
-  config: Config
+  config: Config,
+  creds: AWSCreds
 ) extends Queue with StreamUsage {
 
   import scala.collection.JavaConverters._
@@ -104,6 +105,7 @@ class DefaultQueue @Inject() (
 
   private[this] def streamConfig[T: TypeTag] = {
     DefaultStreamConfig(
+      creds,
       appName = config.requiredString("name"),
       streamName = streamName[T]
     )
