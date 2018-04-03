@@ -11,7 +11,7 @@ Events publishing and receiving lib
 ## Testing
 
 ```
-apidoc upload flow lib-event-test ./lib-event-test.json --version 0.0.1
-apidoc update
+apibuilder upload flow lib-event-test ./lib-event-test.json --version 0.0.1
+apibuilder update
 sbt test
 ```
