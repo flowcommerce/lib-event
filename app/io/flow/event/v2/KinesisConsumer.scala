@@ -4,7 +4,6 @@ import java.net.InetAddress
 import java.util.UUID
 import java.util.concurrent.Executors
 
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
