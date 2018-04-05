@@ -10,14 +10,13 @@ class AWSCreds @Inject() (config: Config) extends AWSCredentialsProviderChain(
 
   List(
 
-    // for EC2 role
-    Some(DefaultAWSCredentialsProviderChain.getInstance()),
-
-    // fallback to known working config
     for {
       accessKey <- config.optionalString("aws.access.key")
       secretKey <- config.optionalString("aws.secret.key")
-    } yield new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))
+    } yield new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)),
+
+    // EC2 role
+    Some(DefaultAWSCredentialsProviderChain.getInstance())
 
   ).flatten.asJava
 
