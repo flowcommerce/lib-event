@@ -48,13 +48,11 @@ trait Producer[T] {
 
 
 /**
-  * Builds our default producer/consumer. Requires the following config
-  * variables to be set:
-  *   - aws.access.key
-  *   - aws.secret.key
+  * Builds our default producer/consumer
   */
 class DefaultQueue @Inject() (
-  config: Config
+  config: Config,
+  creds: AWSCreds
 ) extends Queue with StreamUsage {
 
   import scala.collection.JavaConverters._
@@ -105,14 +103,9 @@ class DefaultQueue @Inject() (
     }
   }
 
-  private[this] def awsCredentials = new BasicAWSCredentials(
-    config.requiredString("aws.access.key"),
-    config.requiredString("aws.secret.key")
-  )
-
   private[this] def streamConfig[T: TypeTag] = {
     DefaultStreamConfig(
-      awsCredentials,
+      creds,
       appName = config.requiredString("name"),
       streamName = streamName[T]
     )

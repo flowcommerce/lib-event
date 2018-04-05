@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
 import com.amazonaws.ClientConfiguration
-import com.amazonaws.auth.{AWSCredentials, AWSCredentialsProvider, AWSStaticCredentialsProvider}
+import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 import io.flow.event.Naming
 
@@ -23,14 +23,12 @@ trait StreamConfig {
 }
 
 case class DefaultStreamConfig(
-  awsCredentials: AWSCredentials,
+  awsCredentialsProvider: AWSCreds,
   appName: String,
   streamName: String,
   maxRecords: Int = 1000,   // number of records in each fetch
   idleTimeBetweenReadsInMillis: Int = 1000
 ) extends StreamConfig {
-
-  override lazy val awsCredentialsProvider: AWSCredentialsProvider = new AWSStaticCredentialsProvider(awsCredentials)
 
   override def kinesisClient: AmazonKinesis = {
     AmazonKinesisClientBuilder.standard().
@@ -44,27 +42,4 @@ case class DefaultStreamConfig(
       ).
       build()
   }
-}
-
-case class NoCredentialsStreamConfig(
-  appName: String,
-  streamName: String,
-  maxRecords: Int = 1000,   // number of records in each fetch
-  idleTimeBetweenReadsInMillis: Int = 1000
-) extends StreamConfig {
-
-  override lazy val awsCredentialsProvider: AWSCredentialsProvider = sys.error("No credentials for NoCredentialsStreamConfig")
-
-  override def kinesisClient: AmazonKinesis = {
-    AmazonKinesisClientBuilder.standard().
-      withClientConfiguration(
-        new ClientConfiguration()
-          .withMaxErrorRetry(10)
-          .withMaxConsecutiveRetriesBeforeThrottling(1)
-          .withThrottledRetries(true)
-          .withConnectionTTL(600000)
-      ).
-      build()
-  }
-
 }
