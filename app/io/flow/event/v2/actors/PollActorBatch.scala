@@ -34,6 +34,12 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
     */
   def accepts(record: Record): Boolean = true
 
+  /**
+    * Allows the retrieved [[Seq[Record]] to be transformed (filtered, modified, ...) before being processed
+    * This function is called right after [[accepts]] and offers more flexibility
+    */
+  def transform(records: Seq[Record]): Seq[Record] = records
+
   def system: ActorSystem
 
   def queue: Queue
@@ -75,9 +81,9 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
 
   private def processWithErrorHandler(records: Seq[Record]): Unit = {
     Try {
-      val filteredRecords = records.filter(accepts)
-      if (filteredRecords.nonEmpty)
-        processBatch(filteredRecords)
+      val transformedRecords = transform(records.filter(accepts))
+      if (transformedRecords.nonEmpty)
+        processBatch(transformedRecords)
     } match {
       case Success(res) => // no-op
       case Failure(ex) => {
