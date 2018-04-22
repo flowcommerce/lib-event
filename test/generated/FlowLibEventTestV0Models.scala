@@ -17,7 +17,7 @@ package io.flow.lib.event.test.v0.models {
     case object TestObjectUpserted extends TestEventDiscriminator { override def toString = "test_object_upserted" }
     case object TestObjectDeleted extends TestEventDiscriminator { override def toString = "test_object_deleted" }
 
-    case class UNDEFINED(override val toString: String) extends TestEventDiscriminator
+    final case class UNDEFINED(override val toString: String) extends TestEventDiscriminator
 
     val all: scala.List[TestEventDiscriminator] = scala.List(TestObjectUpserted, TestObjectDeleted)
 
@@ -29,17 +29,17 @@ package io.flow.lib.event.test.v0.models {
 
   }
 
-  case class TestObject(
+  final case class TestObject(
     id: String
   )
 
-  case class TestObjectDeleted(
+  final case class TestObjectDeleted(
     eventId: String,
     timestamp: _root_.org.joda.time.DateTime,
     id: String
   ) extends TestEvent
 
-  case class TestObjectUpserted(
+  final case class TestObjectUpserted(
     eventId: String,
     timestamp: _root_.org.joda.time.DateTime,
     testObject: io.flow.lib.event.test.v0.models.TestObject
@@ -53,7 +53,7 @@ package io.flow.lib.event.test.v0.models {
    * @param description Information about the type that we received that is undefined in this version of
    *        the client.
    */
-  case class TestEventUndefinedType(
+  final case class TestEventUndefinedType(
     description: String
   ) extends TestEvent
 
@@ -233,7 +233,7 @@ package io.flow.lib.event.test.v0 {
 
     }
 
-    case class ApibuilderQueryStringBindable[T](
+    final case class ApibuilderQueryStringBindable[T](
       converters: ApibuilderTypeConverter[T]
     ) extends QueryStringBindable[T] {
 
@@ -256,7 +256,7 @@ package io.flow.lib.event.test.v0 {
       }
     }
 
-    case class ApibuilderPathBindable[T](
+    final case class ApibuilderPathBindable[T](
       converters: ApibuilderTypeConverter[T]
     ) extends PathBindable[T] {
 
