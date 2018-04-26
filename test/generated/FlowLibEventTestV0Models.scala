@@ -119,11 +119,11 @@ package io.flow.lib.event.test.v0.models {
     }
 
     implicit def jsonReadsLibEventTestTestObjectDeleted: play.api.libs.json.Reads[TestObjectDeleted] = {
-      (
-        (__ \ "event_id").read[String] and
-        (__ \ "timestamp").read[_root_.org.joda.time.DateTime] and
-        (__ \ "id").read[String]
-      )(TestObjectDeleted.apply _)
+      for {
+        eventId <- (__ \ "event_id").read[String]
+        timestamp <- (__ \ "timestamp").read[_root_.org.joda.time.DateTime]
+        id <- (__ \ "id").read[String]
+      } yield TestObjectDeleted(eventId, timestamp, id)
     }
 
     def jsObjectTestObjectDeleted(obj: io.flow.lib.event.test.v0.models.TestObjectDeleted): play.api.libs.json.JsObject = {
@@ -135,11 +135,11 @@ package io.flow.lib.event.test.v0.models {
     }
 
     implicit def jsonReadsLibEventTestTestObjectUpserted: play.api.libs.json.Reads[TestObjectUpserted] = {
-      (
-        (__ \ "event_id").read[String] and
-        (__ \ "timestamp").read[_root_.org.joda.time.DateTime] and
-        (__ \ "test_object").read[io.flow.lib.event.test.v0.models.TestObject]
-      )(TestObjectUpserted.apply _)
+      for {
+        eventId <- (__ \ "event_id").read[String]
+        timestamp <- (__ \ "timestamp").read[_root_.org.joda.time.DateTime]
+        testObject <- (__ \ "test_object").read[io.flow.lib.event.test.v0.models.TestObject]
+      } yield TestObjectUpserted(eventId, timestamp, testObject)
     }
 
     def jsObjectTestObjectUpserted(obj: io.flow.lib.event.test.v0.models.TestObjectUpserted): play.api.libs.json.JsObject = {
