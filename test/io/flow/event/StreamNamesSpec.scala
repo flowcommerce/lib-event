@@ -2,9 +2,10 @@ package io.flow.event
 
 import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.play.util.FlowEnvironment
-import org.scalatestplus.play.{OneAppPerSuite, PlaySpec}
+import org.scalatestplus.play.PlaySpec
+import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 
-class StreamNamesSpec extends PlaySpec with OneAppPerSuite {
+class StreamNamesSpec extends PlaySpec with GuiceOneAppPerSuite {
 
   private[this] val dev = StreamNames(FlowEnvironment.Development)
   private[this] val ws = StreamNames(FlowEnvironment.Workstation)

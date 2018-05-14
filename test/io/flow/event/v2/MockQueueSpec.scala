@@ -62,7 +62,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     // consume: start [[consumersSize]] consumers consuming concurrently
     (1 to consumersPoolSize).foreach { _ =>
       Future {
-        q.consume[TestEvent](_ => count.increment(), 1 nano)
+        q.consume[TestEvent](_ => count.increment(), 1.nano)
       } (consumerContext)
     }
 
@@ -98,7 +98,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     }
 
     // consume every 1 ms
-    q.consume[TestEvent](_ => (), 1 milli)
+    q.consume[TestEvent](_ => (), 1.milli)
 
     // eventually, stream should be almost empty
     eventuallyInNSeconds(5) {
@@ -113,8 +113,8 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     }
 
     // bring in 2 consumers on the same stream
-    q.consume[TestEvent](_ => (), 1 milli)
-    q.consume[TestEvent](_ => (), 1 milli)
+    q.consume[TestEvent](_ => (), 1.milli)
+    q.consume[TestEvent](_ => (), 1.milli)
 
     eventuallyInNSeconds(5) {
       q.stream[TestEvent].pending.size must be <= 1

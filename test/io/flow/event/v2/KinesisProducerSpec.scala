@@ -8,7 +8,7 @@ import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpsert
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
-import org.scalatest.mock.MockitoSugar
+import org.scalatest.mockito.MockitoSugar
 import org.scalatest.Inspectors
 import org.scalatestplus.play.PlaySpec
 import play.api.libs.json.Json

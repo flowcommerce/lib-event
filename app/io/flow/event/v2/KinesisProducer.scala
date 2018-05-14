@@ -26,34 +26,8 @@ case class KinesisProducer[T](
 
   setup()
 
-  private def publish(event: JsValue)(implicit ec: ExecutionContext) {
-    val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
-    val bytes = Json.stringify(event).getBytes("UTF-8")
-
-    val record =
-      new PutRecordRequest()
-      .withData(ByteBuffer.wrap(bytes))
-      .withPartitionKey(partitionKey)
-      .withStreamName(config.streamName)
-
-    publishRetries(record, 1)
-  }
-
   override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
-    publish(serializer.writes(event))
-
-  private def publishRetries(record: PutRecordRequest, attempts: Int): Unit = {
-    Try(doPublish(record))
-      .recover {
-        case ex @ (_: ProvisionedThroughputExceededException | _: KMSThrottlingException) if attempts <= MaxRetries =>
-          Logger.warn(s"[FlowKinesisWarn] record failed to be published. Retrying $attempts/$MaxRetries ...", ex)
-          waitBeforeRetry(attempts)
-          publishRetries(record, attempts + 1)
-        case e => Logger.error("[FlowKinesisError] record failed to be published", e)
-      }.get // open the pandora box
-  }
-
-  private def doPublish(record: PutRecordRequest): PutRecordResult = kinesisClient.putRecord(record)
+    publishBatch(Seq(event))
 
   /**
     * Publishes the events in batch, respecting Kinesis size limitations as defined in
