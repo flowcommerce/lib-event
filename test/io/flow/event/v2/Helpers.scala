@@ -8,8 +8,7 @@ import io.flow.play.util.{Config, IdGenerator}
 import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
-import play.api.libs.json.Json
-
+import play.api.Application
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
@@ -18,7 +17,7 @@ trait Helpers {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  private[this] lazy val config = play.api.Play.current.injector.instanceOf[MockConfig]
+  private[this] def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
 
   private[this] val eventIdGenerator = IdGenerator("evt")
 
@@ -28,7 +27,7 @@ trait Helpers {
     }
   }
 
-  def withConfig[T](f: Config => T): T = {
+  def withConfig[T](f: Config => T)(implicit app: Application): T = {
     config.set("name", "lib-event-test")
     f(config)
   }
