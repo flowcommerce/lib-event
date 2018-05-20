@@ -4,9 +4,9 @@ name := "lib-event-play26"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.12.5"
+scalaVersion in ThisBuild := "2.12.6"
 
-crossScalaVersions := Seq("2.12.5", "2.11.12")
+crossScalaVersions := Seq("2.12.6", "2.11.12")
 
 lazy val root = project
   .in(file("."))
