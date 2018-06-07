@@ -16,8 +16,8 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-play-play26" % "0.4.70",
-      "com.amazonaws" % "amazon-kinesis-client" % "1.9.0",
+      "io.flow" %% "lib-play-play26" % "0.4.71",
+      "com.amazonaws" % "amazon-kinesis-client" % "1.9.1",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.5",
       "org.mockito" % "mockito-core" % "2.18.3" % Test,
