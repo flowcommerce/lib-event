@@ -19,7 +19,7 @@ lazy val root = project
       "io.flow" %% "lib-play-play26" % "0.4.71",
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.1",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
-      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.5",
+      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.6",
       "org.mockito" % "mockito-core" % "2.18.3" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.12" % Test
     ),
