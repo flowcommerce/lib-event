@@ -25,10 +25,10 @@ lazy val root = project
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
-    resolvers += "Artifactory" at "https://flow.artifactoryonline.com/flow/libs-release/",
+    resolvers += "Artifactory" at "https://flow.jfrog.io/flow/libs-release/",
     credentials += Credentials(
       "Artifactory Realm",
-      "flow.artifactoryonline.com",
+      "flow.jfrog.io",
       System.getenv("ARTIFACTORY_USERNAME"),
       System.getenv("ARTIFACTORY_PASSWORD")
     ),
@@ -36,7 +36,7 @@ lazy val root = project
   )
 
 publishTo := {
-  val host = "https://flow.artifactoryonline.com/flow"
+  val host = "https://flow.jfrog.io/flow"
   if (isSnapshot.value) {
     Some("Artifactory Realm" at s"$host/libs-snapshot-local;build.timestamp=" + new java.util.Date().getTime)
   } else {
