@@ -6,8 +6,6 @@ organization := "io.flow"
 
 scalaVersion in ThisBuild := "2.12.6"
 
-crossScalaVersions := Seq("2.12.6", "2.11.12")
-
 lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
@@ -17,7 +15,7 @@ lazy val root = project
       ws,
       guice,
       "io.flow" %% "lib-util" % "0.0.2",
-      "io.flow" %% "lib-play-play26" % "0.4.80",
+      "io.flow" %% "lib-play-play26" % "0.4.82",
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.1",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.6",
