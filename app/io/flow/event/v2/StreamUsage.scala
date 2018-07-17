@@ -1,9 +1,6 @@
 package io.flow.event.v2
 
-import javax.print.DocFlavor.STRING
-
-import akka.http.scaladsl.model.headers.CacheDirectives.public
-import io.flow.event.{StreamNames, Util}
+import io.flow.util.StreamNames
 
 import scala.collection.concurrent
 import scala.reflect.runtime.universe._

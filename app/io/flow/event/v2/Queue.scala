@@ -3,10 +3,9 @@ package io.flow.event.v2
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
-import com.amazonaws.auth.BasicAWSCredentials
-import io.flow.event.{Record, StreamNames}
+import io.flow.event.Record
+import io.flow.util.StreamNames
 import io.flow.play.util.Config
-import play.api.libs.json.JsValue
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration

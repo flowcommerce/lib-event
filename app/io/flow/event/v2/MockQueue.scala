@@ -3,7 +3,8 @@ package io.flow.event.v2
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
 import javax.inject.{Inject, Singleton}
 
-import io.flow.event.{Record, StreamNames}
+import io.flow.event.Record
+import io.flow.util.StreamNames
 import org.joda.time.DateTime
 import play.api.libs.json.{JsValue, Writes}
 

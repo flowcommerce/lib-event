@@ -3,7 +3,7 @@ package io.flow.event.v2
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentialsProvider
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
-import io.flow.event.Naming
+import io.flow.util.Naming
 
 trait StreamConfig {
   val appName: String

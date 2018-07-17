@@ -3,6 +3,7 @@ package io.flow.event
 import io.flow.play.util.FlowEnvironment
 import scala.reflect.runtime.universe._
 
+@deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
 case class ApidocClass(
   namespace: String,
   service: String,
@@ -14,8 +15,10 @@ case class ApidocClass(
 
 }
 
+@deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
 object Naming {
 
+  @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
   def dynamoKinesisTableName(streamName: String, appName: String): String = {
     Seq(
       "kinesis",
@@ -28,6 +31,7 @@ object Naming {
     * Returns either 'production' or 'development_workstation' based on the
     * flow environment
     */
+  @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
   def envPrefix(env: FlowEnvironment = FlowEnvironment.Current): String = {
     env match {
       case FlowEnvironment.Production => "production"
@@ -37,10 +41,12 @@ object Naming {
 
 }
 
+@deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
 object StreamNames {
 
   private[this] val ApidocClassRegexp = """^(io\.flow)\.([a-z]+(\.[a-z]+)*)\.v(\d+)\.models\.(\w+)$""".r
-  
+
+  @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
   def parse(name: String): Option[ApidocClass] = {
     name match {
       case ApidocClassRegexp(namespace, service, _, version, n) => {
@@ -62,6 +68,7 @@ object StreamNames {
 
   }
 
+  @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
   def toSnakeCase(name: String): String = {
     name.replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2").replaceAll("([a-z\\d])([A-Z])", "$1_$2").toLowerCase
   }
@@ -70,6 +77,7 @@ object StreamNames {
     * Returns the stream name based on the type of the class (a Right), or a validation
     * error if the class name if invalid (a Left)
     */
+  @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
   def fromType[T: TypeTag]: Either[Seq[String], String] = {
     val name = typeOf[T].toString
 
@@ -92,11 +100,13 @@ object StreamNames {
   }
 }
 
+@deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
 case class StreamNames(env: FlowEnvironment) {
 
   /**
     * Turns a full class name into the name of a kinesis stream
     */
+  @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
   def json(className: String): Option[String] = {
     StreamNames.parse(className).map { apidoc =>
       s"${Naming.envPrefix(env)}.${apidoc.service}.v${apidoc.version}.${apidoc.name}.json"
