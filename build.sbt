@@ -14,12 +14,12 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-util" % "0.0.5",
-      "io.flow" %% "lib-play-play26" % "0.4.86",
+      "io.flow" %% "lib-util" % "0.0.6",
+      "io.flow" %% "lib-play-play26" % "0.4.87",
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.1",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.6",
-      "org.mockito" % "mockito-core" % "2.19.1" % Test,
+      "org.mockito" % "mockito-core" % "2.20.1" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.14" % Test
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
