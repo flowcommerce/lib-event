@@ -36,6 +36,8 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     stream.all.map(_.eventId) must equal(Seq(eventId))
     stream.consumed.map(_.eventId) must equal(Seq(eventId))
     stream.pending.map(_.eventId) must equal(Nil)
+
+    StreamUsage.writtenStreams.head.eventsProduced.size must be(1)
   }
 
   "consumeEventId" in {
