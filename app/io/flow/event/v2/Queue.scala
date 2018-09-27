@@ -70,7 +70,7 @@ class DefaultQueue @Inject() (
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
-    markProduced[T]()
+    markProducesStream(streamName[T], typeOf[T])
     KinesisProducer(
       streamConfig[T],
       numberShards,
@@ -82,7 +82,7 @@ class DefaultQueue @Inject() (
      f: Seq[Record] => Unit,
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   )(implicit ec: ExecutionContext) {
-    markConsumed[T]()
+    markConsumesStream(streamName[T], typeOf[T])
     consumers.add(
       KinesisConsumer(
         streamConfig[T],
@@ -114,7 +114,8 @@ class DefaultQueue @Inject() (
     DefaultStreamConfig(
       creds,
       appName = appName,
-      streamName = streamName[T]
+      streamName = streamName[T],
+      eventClass = typeOf[T]
     )
   }
 }

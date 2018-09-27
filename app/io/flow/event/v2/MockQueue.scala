@@ -33,7 +33,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
-    markProduced[T]()
+    markProducesStream(streamName[T], typeOf[T])
     MockProducer(stream[T], debug = debug.get)
   }
 
@@ -45,7 +45,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
   ) {
     val s = stream[T]
     val consumer = RunningConsumer(s, f, pollTime)
-    markConsumed[T]()
+    markConsumesStream(streamName[T], typeOf[T])
     consumers.add(consumer)
   }
 
@@ -63,7 +63,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
 
   def stream[T: TypeTag]: MockStream = {
     streams.computeIfAbsent(streamName[T],
-      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(debug = debug.get) })
+      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(s, debug = debug.get) })
   }
 
   private[this] def streamName[T: TypeTag] = {
@@ -96,7 +96,7 @@ case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, poll
 
 }
 
-case class MockStream(debug: Boolean = false) {
+case class MockStream(streamName: String, debug: Boolean = false) {
 
   private[this] def logDebug(f: => String): Unit = {
     if (debug) {
@@ -154,7 +154,7 @@ case class MockStream(debug: Boolean = false) {
 
 }
 
-case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends Producer[T] {
+case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends Producer[T] with StreamUsage {
 
   private[this] def logDebug(f: => String): Unit = {
     if (debug) {
@@ -163,17 +163,21 @@ case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends P
   }
 
   private def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
+    val r= Record.fromJsValue(
+      arrivalTimestamp = DateTime.now,
+      js = event
+    )
+
     logDebug { s"Publishing event: $event" }
     stream.publish(
-      Record.fromJsValue(
-        arrivalTimestamp = DateTime.now,
-        js = event
-      )
+      r
     )
   }
 
-  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
-    publish(serializer.writes(event))
+  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit = {
+    val w = serializer.writes(event)
+    markProducedEvent(stream.streamName, w)
+    publish(w)
 
   def shutdown(implicit ec: ExecutionContext): Unit = {
     logDebug { "shutting down" }

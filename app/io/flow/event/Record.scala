@@ -3,6 +3,7 @@ package io.flow.event
 import play.api.libs.json.{JsValue, Json}
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat.dateTimeParser
+import scala.reflect.runtime.universe._
 
 object Record {
 
@@ -23,13 +24,18 @@ object Record {
   
 }
 
-
 case class Record(
   eventId: String,
   timestamp: DateTime,
   arrivalTimestamp: DateTime,
   js: JsValue
-)
+){
+  /** Returns the discriminator of the event, or the shortened name of T */
+  lazy val eventName = {
+    (js \ "discriminator")
+      .asOpt[String]
+  }
+}
 
 case class Message(
   message: String,

@@ -19,7 +19,7 @@ import scala.concurrent.ExecutionContext
 case class KinesisConsumer (
   config: StreamConfig,
   f: Seq[Record] => Unit
-) {
+) extends StreamUsage {
 
   private[this] val workerId = Seq(
     config.appName,
