@@ -31,6 +31,13 @@ trait Queue {
 
   def shutdownConsumers(implicit ec: ExecutionContext)
 
+  /** Return the name of this stream [if it were on AWS] */
+  def streamName[T: TypeTag]: String = {
+    StreamNames.fromType[T] match {
+      case Left(errors) => sys.error(errors.mkString(", "))
+      case Right(name) => name
+    }
+  }
 }
 
 trait Producer[T] {
@@ -93,13 +100,6 @@ class DefaultQueue @Inject() (
 
   override def shutdown(implicit ec: ExecutionContext): Unit = {
     shutdownConsumers
-  }
-
-  private[this] def streamName[T: TypeTag]: String = {
-    StreamNames.fromType[T] match {
-      case Left(errors) => sys.error(errors.mkString(", "))
-      case Right(name) => name
-    }
   }
 
   private[this] def streamConfig[T: TypeTag] = {
