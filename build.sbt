@@ -4,7 +4,7 @@ name := "lib-event-play26"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.12.6"
+scalaVersion in ThisBuild := "2.12.7"
 
 lazy val root = project
   .in(file("."))
