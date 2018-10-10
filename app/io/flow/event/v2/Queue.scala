@@ -31,6 +31,12 @@ trait Queue {
 
   def shutdownConsumers(implicit ec: ExecutionContext)
 
+  /**
+    * The name of the application which is used by the kinesis client library
+    * to manage leases, ensuring only one consumer is running for all nodes
+    * with the same name. This defaults to the 'name' configuration parameter.
+    */
+  def appName: String
 }
 
 trait Producer[T] {
@@ -57,6 +63,8 @@ class DefaultQueue @Inject() (
   import scala.collection.JavaConverters._
 
   private[this] val consumers = new ConcurrentLinkedQueue[KinesisConsumer]()
+
+  override def appName: String = config.requiredString("name")
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
@@ -105,7 +113,7 @@ class DefaultQueue @Inject() (
   private[this] def streamConfig[T: TypeTag] = {
     DefaultStreamConfig(
       creds,
-      appName = config.requiredString("name"),
+      appName = appName,
       streamName = streamName[T]
     )
   }

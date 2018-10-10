@@ -19,6 +19,8 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
 
+  override def appName: String = "io.flow.event.v2.MockQueue"
+
   override def producer[T: TypeTag](
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
