@@ -1,5 +1,6 @@
 package io.flow.event.v2
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
 
 import javax.inject.{Inject, Singleton}
@@ -20,10 +21,10 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
 
-  private[this] var debug: Boolean = false
+  private[this] val debug: AtomicBoolean = new AtomicBoolean(false)
 
   def withDebugging(): Unit = {
-    debug = true
+    debug.set(true)
   }
 
   override def appName: String = "io.flow.event.v2.MockQueue"
@@ -33,7 +34,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
     markProduced[T]()
-    MockProducer(stream[T], debug = debug)
+    MockProducer(stream[T], debug = debug.get)
   }
 
   override def consume[T: TypeTag](
@@ -62,7 +63,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
 
   def stream[T: TypeTag]: MockStream = {
     streams.computeIfAbsent(streamName[T],
-      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(debug = debug) })
+      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(debug = debug.get) })
   }
 
   private[this] def streamName[T: TypeTag] = {
