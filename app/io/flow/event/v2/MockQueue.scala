@@ -1,11 +1,13 @@
 package io.flow.event.v2
 
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
-import javax.inject.{Inject, Singleton}
 
+import javax.inject.{Inject, Singleton}
 import io.flow.event.Record
 import io.flow.util.StreamNames
 import org.joda.time.DateTime
+import play.api.Logger
 import play.api.libs.json.{JsValue, Writes}
 
 import scala.concurrent.ExecutionContext
@@ -19,6 +21,12 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
 
+  private[this] val debug: AtomicBoolean = new AtomicBoolean(false)
+
+  def withDebugging(): Unit = {
+    debug.set(true)
+  }
+
   override def appName: String = "io.flow.event.v2.MockQueue"
 
   override def producer[T: TypeTag](
@@ -26,7 +34,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
     markProduced[T]()
-    MockProducer(stream[T])
+    MockProducer(stream[T], debug = debug.get)
   }
 
   override def consume[T: TypeTag](
@@ -55,7 +63,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
 
   def stream[T: TypeTag]: MockStream = {
     streams.computeIfAbsent(streamName[T],
-      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream() })
+      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(debug = debug.get) })
   }
 
   private[this] def streamName[T: TypeTag] = {
@@ -69,7 +77,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
     * Clears all pending records from the queue.
     * Does not shutdown the consumers.
     */
-  def clear() = streams.values().asScala.foreach(_.clearPending())
+  def clear(): Unit = streams.values().asScala.foreach(_.clearPending())
 
 }
 
@@ -88,12 +96,19 @@ case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, poll
 
 }
 
-case class MockStream() {
+case class MockStream(debug: Boolean = false) {
+
+  private[this] def logDebug(f: => String): Unit = {
+    if (debug) {
+      Logger.info(s"[MockQueue Debug ${getClass.getName}] $f")
+    }
+  }
 
   private[this] val pendingRecords = new ConcurrentLinkedQueue[Record]()
   private[this] val consumedRecords = new ConcurrentLinkedQueue[Record]()
 
   def publish(record: Record): Unit = {
+    logDebug { s"publishing record: ${record.js}" }
     pendingRecords.add(record)
   }
 
@@ -103,8 +118,12 @@ case class MockStream() {
   def consume(): Option[Record] = {
     // synchronized for consistency between pending and consumed
     synchronized {
+      logDebug { s"consume() starting" }
       val r = Option(pendingRecords.poll())
-      r.foreach(consumedRecords.add)
+      r.foreach { rec =>
+        logDebug { s"Consumed record: $rec" }
+        consumedRecords.add(rec)
+      }
       r
     }
   }
@@ -135,9 +154,16 @@ case class MockStream() {
 
 }
 
-case class MockProducer[T](stream: MockStream) extends Producer[T] {
+case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends Producer[T] {
+
+  private[this] def logDebug(f: => String): Unit = {
+    if (debug) {
+      Logger.info(s"[MockQueue Debug ${getClass.getName}] $f")
+    }
+  }
 
   private def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
+    logDebug { s"Publishing event: $event" }
     stream.publish(
       Record.fromJsValue(
         arrivalTimestamp = DateTime.now,
@@ -149,6 +175,8 @@ case class MockProducer[T](stream: MockStream) extends Producer[T] {
   override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
     publish(serializer.writes(event))
 
-  def shutdown(implicit ec: ExecutionContext): Unit = {}
+  def shutdown(implicit ec: ExecutionContext): Unit = {
+    logDebug { "shutting down" }
+  }
 
 }

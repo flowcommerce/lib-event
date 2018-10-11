@@ -3,6 +3,7 @@ package io.flow.event.v2
 import io.flow.util.StreamNames
 
 import scala.collection.concurrent
+import scala.collection.concurrent.TrieMap
 import scala.reflect.runtime.universe._
 
 /**
@@ -38,7 +39,7 @@ trait StreamUsage {
 }
 
 object StreamUsage {
-  protected val usageMap = concurrent.TrieMap[String, StreamUsed]()
+  protected val usageMap: TrieMap[String, StreamUsed] = concurrent.TrieMap[String, StreamUsed]()
 
   def allStreamsUsed: Seq[StreamUsed] = usageMap.values.toSeq.sortBy(_.streamName)
 
