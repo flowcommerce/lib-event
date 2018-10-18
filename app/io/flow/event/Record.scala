@@ -30,11 +30,8 @@ case class Record(
   arrivalTimestamp: DateTime,
   js: JsValue
 ){
-  /** Returns the discriminator of the event, or the shortened name of T */
-  lazy val eventName = {
-    (js \ "discriminator")
-      .asOpt[String]
-  }
+  /** Returns the APIBuilder discriminator of the event */
+  lazy val discriminator = (js \ "discriminator").asOpt[String]
 }
 
 case class Message(

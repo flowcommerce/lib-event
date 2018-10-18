@@ -35,14 +35,13 @@ trait StreamUsage {
   }
 
   protected def markAcceptedEvent(streamName: String, r: Record): Unit = {
-    r.eventName.foreach{ d=>
+    r.discriminator.foreach{ d=>
       usageMap.get(streamName).foreach{ usage =>
         if (!usage.eventsAccepted.contains(d)){
           usageMap.put(streamName, usage.copy(eventsAccepted = usage.eventsAccepted + d))
         }
       }
     }
-
   }
 
   protected def markProducedEvent(streamName: String, e: JsValue): Unit = {
