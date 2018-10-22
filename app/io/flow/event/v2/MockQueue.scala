@@ -178,6 +178,7 @@ case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends P
     val w = serializer.writes(event)
     markProducedEvent(stream.streamName, w)
     publish(w)
+  }
 
   def shutdown(implicit ec: ExecutionContext): Unit = {
     logDebug { "shutting down" }
