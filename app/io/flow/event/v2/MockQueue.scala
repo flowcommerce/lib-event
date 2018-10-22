@@ -66,13 +66,6 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
       new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(s, debug = debug.get) })
   }
 
-  private[this] def streamName[T: TypeTag] = {
-    StreamNames.fromType[T] match {
-      case Left(errors) => sys.error(errors.mkString(", "))
-      case Right(name) => name
-    }
-  }
-
   /**
     * Clears all pending records from the queue.
     * Does not shutdown the consumers.
