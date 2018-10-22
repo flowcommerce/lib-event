@@ -18,7 +18,7 @@ case class KinesisProducer[T](
   config: StreamConfig,
   numberShards: Int,
   partitionKeyFieldName: String
-) extends Producer[T] {
+) extends Producer[T] with StreamUsage {
 
   import KinesisProducer._
 
@@ -49,6 +49,8 @@ case class KinesisProducer[T](
         val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
         val data = Json.stringify(event).getBytes("UTF-8")
         val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
+
+        markProducedEvent(config.streamName, event)
 
         // did the current batch reach one of the limitations?
         val newBytesSize = currentBytesSize + data.length

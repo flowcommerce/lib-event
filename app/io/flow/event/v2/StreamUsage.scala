@@ -1,6 +1,9 @@
 package io.flow.event.v2
 
+import io.flow.event.Record
 import io.flow.util.StreamNames
+import play.api.Logger
+import play.api.libs.json.JsValue
 
 import scala.collection.concurrent
 import scala.collection.concurrent.TrieMap
@@ -17,22 +20,37 @@ import scala.reflect.runtime.universe._
 trait StreamUsage {
   import io.flow.event.v2.StreamUsage._
 
-  protected def markProduced[T:TypeTag](): Unit = {
-    StreamNames.fromType[T] match {
-      case Left(errors) => sys.error(errors.mkString(", "))
-      case Right(name) => {
-        val usage = usageMap.getOrElseUpdate(name, StreamUsed(name, typeOf[T]))
-        usageMap.put(name, usage.copy(produced = true))
+  protected def markProducesStream(streamName:String, eventClass: Type): Unit = {
+    val usage = usageMap.getOrElseUpdate(streamName, StreamUsed(streamName, eventClass))
+    if (!usage.produced) {
+      usageMap.put(streamName, usage.copy(produced = true))
+    }
+  }
+
+  protected def markConsumesStream(streamName: String, eventClass: Type): Unit = {
+    val usage = usageMap.getOrElseUpdate(streamName, StreamUsed(streamName, eventClass))
+    if (!usage.consumed) {
+      usageMap.put(streamName, usage.copy(consumed = true))
+    }
+  }
+
+  protected def markAcceptedEvent(streamName: String, r: Record): Unit = {
+    r.discriminator.foreach{ d=>
+      usageMap.get(streamName).foreach{ usage =>
+        if (!usage.eventsAccepted.contains(d)){
+          usageMap.put(streamName, usage.copy(eventsAccepted = usage.eventsAccepted + d))
+        }
       }
     }
   }
 
-  protected def markConsumed[T:TypeTag](): Unit = {
-    StreamNames.fromType[T] match {
-      case Left(errors) => sys.error(errors.mkString(", "))
-      case Right(name) => {
-        val usage = usageMap.getOrElseUpdate(name, StreamUsed(name, typeOf[T]))
-        usageMap.put(name, usage.copy(consumed = true))
+  protected def markProducedEvent(streamName: String, e: JsValue): Unit = {
+    (e \ "discriminator")
+      .asOpt[String] .foreach { d =>
+      usageMap.get(streamName).foreach { usage =>
+        if (!usage.eventsProduced.contains(d)) {
+          usageMap.put(streamName, usage.copy(eventsProduced = usage.eventsProduced + d))
+        }
       }
     }
   }
@@ -54,7 +72,9 @@ case class StreamUsed (
   serviceName: String,
   specName: String,
   consumed: Boolean = false,
-  produced: Boolean = false
+  produced: Boolean = false,
+  eventsAccepted : Set[String] = Set.empty,
+  eventsProduced : Set[String] = Set.empty
 )
 object StreamUsed {
   def apply(streamName: String, eventClass: Type): StreamUsed = {

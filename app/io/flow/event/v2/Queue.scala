@@ -31,6 +31,13 @@ trait Queue {
 
   def shutdownConsumers(implicit ec: ExecutionContext)
 
+  /** Return the name of this stream [if it were on AWS] */
+  def streamName[T: TypeTag]: String = {
+    StreamNames.fromType[T] match {
+      case Left(errors) => sys.error(errors.mkString(", "))
+      case Right(name) => name
+    }
+  }
   /**
     * The name of the application which is used by the kinesis client library
     * to manage leases, ensuring only one consumer is running for all nodes
@@ -70,7 +77,7 @@ class DefaultQueue @Inject() (
     numberShards: Int = 1,
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
-    markProduced[T]()
+    markProducesStream(streamName[T], typeOf[T])
     KinesisProducer(
       streamConfig[T],
       numberShards,
@@ -82,7 +89,7 @@ class DefaultQueue @Inject() (
      f: Seq[Record] => Unit,
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   )(implicit ec: ExecutionContext) {
-    markConsumed[T]()
+    markConsumesStream(streamName[T], typeOf[T])
     consumers.add(
       KinesisConsumer(
         streamConfig[T],
@@ -103,18 +110,12 @@ class DefaultQueue @Inject() (
     shutdownConsumers
   }
 
-  private[this] def streamName[T: TypeTag]: String = {
-    StreamNames.fromType[T] match {
-      case Left(errors) => sys.error(errors.mkString(", "))
-      case Right(name) => name
-    }
-  }
-
   private[this] def streamConfig[T: TypeTag] = {
     DefaultStreamConfig(
       creds,
       appName = appName,
-      streamName = streamName[T]
+      streamName = streamName[T],
+      eventClass = typeOf[T]
     )
   }
 }
