@@ -13,8 +13,6 @@ import scala.concurrent.duration._
 
 class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
-
   private[this] val testObject = TestObject(id = "1")
 
   "all" in {

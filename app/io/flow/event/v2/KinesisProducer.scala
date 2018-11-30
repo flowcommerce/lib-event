@@ -6,13 +6,12 @@ import java.util
 import com.amazonaws.services.kinesis.model._
 import io.flow.event.Util
 import play.api.Logger
-import play.api.libs.json.{JsValue, Json, Writes}
+import play.api.libs.json.{Json, Writes}
 
 import scala.annotation.tailrec
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Random, Success, Try}
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
+import scala.util.{Failure, Random, Success, Try}
 
 case class KinesisProducer[T](
   config: StreamConfig,
@@ -26,7 +25,7 @@ case class KinesisProducer[T](
 
   setup()
 
-  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit =
+  override def publish[U <: T](event: U)(implicit serializer: Writes[U]): Unit =
     publishBatch(Seq(event))
 
   /**
@@ -36,7 +35,7 @@ case class KinesisProducer[T](
     * "Each PutRecords request can support up to 500 records. Each record in the request can be as large as 1 MB, up to
     * a limit of 5 MB for the entire request, including partition keys."
     */
-  override def publishBatch[U <: T](events: Seq[U])(implicit ec: ExecutionContext, serializer: Writes[U]): Unit = {
+  override def publishBatch[U <: T](events: Seq[U])(implicit serializer: Writes[U]): Unit = {
     // Make sure that there are events: AWS will complain otherwise
     if (events.nonEmpty) {
       val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
@@ -113,7 +112,7 @@ case class KinesisProducer[T](
     kinesisClient.putRecords(putRecordsRequest)
   }
 
-  override def shutdown(implicit ec: ExecutionContext): Unit = {
+  override def shutdown(): Unit = {
     kinesisClient.shutdown()
   }
 

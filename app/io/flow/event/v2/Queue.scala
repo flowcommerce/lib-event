@@ -1,13 +1,12 @@
 package io.flow.event.v2
 
 import java.util.concurrent.ConcurrentLinkedQueue
-import javax.inject.Inject
 
 import io.flow.event.Record
-import io.flow.util.StreamNames
 import io.flow.play.util.Config
+import io.flow.util.StreamNames
+import javax.inject.Inject
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
 
@@ -25,11 +24,11 @@ trait Queue {
   def consume[T: TypeTag](
     f: Seq[Record] => Unit,
     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
-  )(implicit ec: ExecutionContext)
+  ): Unit
 
-  def shutdown(implicit ec: ExecutionContext)
+  def shutdown()
 
-  def shutdownConsumers(implicit ec: ExecutionContext)
+  def shutdownConsumers()
 
   /** Return the name of this stream [if it were on AWS] */
   def streamName[T: TypeTag]: String = {
@@ -48,13 +47,13 @@ trait Queue {
 
 trait Producer[T] {
 
-  def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[U]): Unit
+  def publish[U <: T](event: U)(implicit serializer: play.api.libs.json.Writes[U]): Unit
 
   def publishBatch[U <: T](events: Seq[U])
-                     (implicit ec: ExecutionContext, serializer: play.api.libs.json.Writes[U]): Unit =
+    (implicit serializer: play.api.libs.json.Writes[U]): Unit =
     events.foreach(publish[U])
 
-  def shutdown(implicit ec: ExecutionContext): Unit
+  def shutdown(): Unit
 
 }
 
@@ -88,7 +87,7 @@ class DefaultQueue @Inject() (
   override def consume[T: TypeTag](
      f: Seq[Record] => Unit,
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
-  )(implicit ec: ExecutionContext) {
+  ): Unit = {
     markConsumesStream(streamName[T], typeOf[T])
     consumers.add(
       KinesisConsumer(
@@ -98,17 +97,15 @@ class DefaultQueue @Inject() (
     )
   }
 
-  override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
+  override def shutdownConsumers(): Unit = {
     // synchronized to avoid a consumer being registered "in between" shutdown and clear
     synchronized {
-      consumers.asScala.foreach(_.shutdown)
+      consumers.asScala.foreach(_.shutdown())
       consumers.clear()
     }
   }
 
-  override def shutdown(implicit ec: ExecutionContext): Unit = {
-    shutdownConsumers
-  }
+  override def shutdown(): Unit = shutdownConsumers()
 
   private[this] def streamConfig[T: TypeTag] = {
     DefaultStreamConfig(

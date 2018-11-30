@@ -40,21 +40,19 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
   override def consume[T: TypeTag](
     f: Seq[Record] => Unit,
     pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
-  )(
-    implicit ec: ExecutionContext
-  ) {
+  ): Unit = {
     val s = stream[T]
     val consumer = RunningConsumer(s, f, pollTime)
     markConsumesStream(streamName[T], typeOf[T])
     consumers.add(consumer)
   }
 
-  override def shutdown(implicit ec: ExecutionContext): Unit = {
-    shutdownConsumers
+  override def shutdown(): Unit = {
+    shutdownConsumers()
     streams.clear()
   }
 
-  override def shutdownConsumers(implicit ec: ExecutionContext): Unit = {
+  override def shutdownConsumers(): Unit = {
     synchronized {
       consumers.asScala.foreach(_.shutdown())
       consumers.clear()
@@ -155,7 +153,7 @@ case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends P
     }
   }
 
-  private def publish(event: JsValue)(implicit ec: ExecutionContext): Unit = {
+  private def publish(event: JsValue): Unit = {
     val r= Record.fromJsValue(
       arrivalTimestamp = DateTime.now,
       js = event
@@ -167,13 +165,13 @@ case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends P
     )
   }
 
-  override def publish[U <: T](event: U)(implicit ec: ExecutionContext, serializer: Writes[U]): Unit = {
+  override def publish[U <: T](event: U)(implicit serializer: Writes[U]): Unit = {
     val w = serializer.writes(event)
     markProducedEvent(stream.streamName, w)
     publish(w)
   }
 
-  def shutdown(implicit ec: ExecutionContext): Unit = {
+  def shutdown(): Unit = {
     logDebug { "shutting down" }
   }
 

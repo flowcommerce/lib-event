@@ -14,7 +14,6 @@ import org.joda.time.DateTime
 import play.api.Logger
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
 
 case class KinesisConsumer (
   config: StreamConfig,
@@ -60,7 +59,7 @@ case class KinesisConsumer (
 
   exec.execute(worker)
 
-  def shutdown(implicit ec: ExecutionContext): Unit = {
+  def shutdown(): Unit = {
     exec.shutdown()
   }
 

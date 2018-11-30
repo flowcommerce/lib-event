@@ -2,7 +2,6 @@ package io.flow.event.v2
 
 import io.flow.event.Record
 import io.flow.util.StreamNames
-import play.api.Logger
 import play.api.libs.json.JsValue
 
 import scala.collection.concurrent
