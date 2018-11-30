@@ -6,12 +6,9 @@ import io.flow.event.v2.{MockQueue, Queue}
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS, SECONDS}
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Failure, Success, Try}
-
-
 
 /**
   * [[PollActorBatch]] periodically polls a kinesis stream invoking process once per message batch
@@ -44,8 +41,6 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
 
   def queue: Queue
 
-  private[this] implicit var ec: ExecutionContext = _
-
   private[this] def defaultDuration = {
     queue match {
       case _:  MockQueue => FiniteDuration(20, MILLISECONDS)
@@ -53,21 +48,8 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
     }
   }
 
-  def start[T: TypeTag](
-                         executionContextName: String,
-                         pollTime: FiniteDuration = defaultDuration
-                       ) {
-    val ec = system.dispatchers.lookup(executionContextName)
-    startWithExecutionContext(ec, pollTime)
-  }
-
-  def startWithExecutionContext[T: TypeTag](
-                                             executionContext: ExecutionContext,
-                                             pollTime: FiniteDuration = FiniteDuration(5, SECONDS)
-                                           ) {
+  def start[T: TypeTag](pollTime: FiniteDuration = defaultDuration): Unit = {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
-
-    this.ec = executionContext
 
     queue.consume[T](
       pollTime = pollTime,

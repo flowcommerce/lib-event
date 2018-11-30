@@ -1,6 +1,6 @@
 package io.flow.event
 
-import io.flow.play.util.Booleans
+import io.flow.util.Booleans
 import play.api.Logger
 import play.api.libs.json._
 
