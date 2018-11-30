@@ -48,10 +48,7 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
     }
   }
 
-  def start[T: TypeTag](
-    executionContextName: String,
-    pollTime: FiniteDuration = defaultDuration
-  ): Unit = {
+  def start[T: TypeTag](pollTime: FiniteDuration = defaultDuration): Unit = {
     Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
 
     queue.consume[T](
