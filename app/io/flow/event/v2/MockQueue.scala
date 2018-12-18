@@ -3,20 +3,18 @@ package io.flow.event.v2
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
 
-import javax.inject.{Inject, Singleton}
 import io.flow.event.Record
-import io.flow.util.StreamNames
+import io.flow.log.RollbarLogger
+import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
-import play.api.Logger
 import play.api.libs.json.{JsValue, Writes}
 
-import scala.concurrent.ExecutionContext
+import scala.collection.JavaConverters._
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
-import scala.collection.JavaConverters._
 
 @Singleton
-class MockQueue @Inject()() extends Queue with StreamUsage {
+class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage {
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
@@ -34,7 +32,7 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
     partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
     markProducesStream(streamName[T], typeOf[T])
-    MockProducer(stream[T], debug = debug.get)
+    MockProducer(stream[T], debug = debug.get, logger)
   }
 
   override def consume[T: TypeTag](
@@ -61,7 +59,10 @@ class MockQueue @Inject()() extends Queue with StreamUsage {
 
   def stream[T: TypeTag]: MockStream = {
     streams.computeIfAbsent(streamName[T],
-      new java.util.function.Function[String, MockStream] { override def apply(s: String) = MockStream(s, debug = debug.get) })
+      new java.util.function.Function[String, MockStream] {
+        override def apply(s: String) = MockStream(s, debug = debug.get, logger)
+      }
+    )
   }
 
   /**
@@ -87,11 +88,11 @@ case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, poll
 
 }
 
-case class MockStream(streamName: String, debug: Boolean = false) {
+case class MockStream(streamName: String, debug: Boolean = false, logger: RollbarLogger) {
 
   private[this] def logDebug(f: => String): Unit = {
     if (debug) {
-      Logger.info(s"[MockQueue Debug ${getClass.getName}] $f")
+      logger.withKeyValue("class", getClass.getName).info(f)
     }
   }
 
@@ -145,11 +146,13 @@ case class MockStream(streamName: String, debug: Boolean = false) {
 
 }
 
-case class MockProducer[T](stream: MockStream, debug: Boolean = false) extends Producer[T] with StreamUsage {
+case class MockProducer[T](stream: MockStream, debug: Boolean = false, logger: RollbarLogger) extends Producer[T] with StreamUsage {
 
   private[this] def logDebug(f: => String): Unit = {
     if (debug) {
-      Logger.info(s"[MockQueue Debug ${getClass.getName}] $f")
+      logger
+        .withKeyValue("class", getClass.getName)
+        .info(f)
     }
   }
 

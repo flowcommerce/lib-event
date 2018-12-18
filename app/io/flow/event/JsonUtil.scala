@@ -1,7 +1,6 @@
 package io.flow.event
 
 import io.flow.util.Booleans
-import play.api.Logger
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
@@ -50,7 +49,6 @@ object JsonUtil {
       case Success(v) => v
       case Failure(_) => {
         val msg = s"Field[$field] has invalid value[$value]: must be a long"
-        Logger.error(msg)
         sys.error(msg)
       }
     }
@@ -75,7 +73,6 @@ object JsonUtil {
       case Success(v) => v
       case Failure(_) => {
         val msg = s"Field[$field] has invalid value[$value]: must be an int"
-        Logger.error(msg)
         sys.error(msg)
       }
     }
@@ -86,7 +83,6 @@ object JsonUtil {
   def optionalBoolean(json: JsValue, field: String): Option[Boolean] = optionalString(json, field).map { value =>
     Booleans.parse(value).getOrElse {
       val msg = s"Field[$field] has invalid value[$value]. Use true, t, false, or f"
-      Logger.error(msg)
       sys.error(msg)
     }
   }
