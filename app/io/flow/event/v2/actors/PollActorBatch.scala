@@ -3,6 +3,7 @@ package io.flow.event.v2.actors
 import akka.actor.{Actor, ActorLogging, ActorSystem}
 import io.flow.event.Record
 import io.flow.event.v2.{MockQueue, Queue}
+import io.flow.log.RollbarLogger
 import io.flow.play.actors.ErrorHandler
 import play.api.Logger
 
@@ -41,6 +42,8 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
 
   def queue: Queue
 
+  def logger: RollbarLogger
+
   private[this] def defaultDuration = {
     queue match {
       case _:  MockQueue => FiniteDuration(20, MILLISECONDS)
@@ -49,7 +52,10 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
   }
 
   def start[T: TypeTag](pollTime: FiniteDuration = defaultDuration): Unit = {
-    Logger.info(s"[${getClass.getName}] Scheduling poll every $pollTime")
+    logger
+      .withKeyValue("class", getClass.getName)
+      .withKeyValue("poll_time", pollTime.toSeconds)
+      .info("Scheduling")
 
     queue.consume[T](
       pollTime = pollTime,
@@ -74,10 +80,14 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
         // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
         // which is a work around to on conflict not working for child partition tables
         if (PollActorErrors.filterExceptionMessage(ex.getMessage)) {
-          Logger.warn(s"[${this.getClass.getName}] FlowEventWarning Error processing record: ${ex.getMessage}")
+          logger
+            .withKeyValue("class", this.getClass.getName)
+            .warn(s"FlowEventWarning Error processing record: ${ex.getMessage}")
         } else {
-          val msg = s"[${this.getClass.getName}] FlowEventError Error processing record: ${ex.getMessage}"
-          Logger.error(msg)
+          val msg = s"FlowEventError Error processing record: ${ex.getMessage}"
+          logger
+            .withKeyValue("class", this.getClass.getName)
+            .error(msg)
           throw new RuntimeException(msg, ex)
         }
       }

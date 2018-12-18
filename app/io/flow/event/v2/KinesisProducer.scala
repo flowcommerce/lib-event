@@ -5,7 +5,7 @@ import java.util
 
 import com.amazonaws.services.kinesis.model._
 import io.flow.event.Util
-import play.api.Logger
+import io.flow.log.RollbarLogger
 import play.api.libs.json.{Json, Writes}
 
 import scala.annotation.tailrec
@@ -16,12 +16,18 @@ import scala.util.{Failure, Random, Success, Try}
 case class KinesisProducer[T](
   config: StreamConfig,
   numberShards: Int,
-  partitionKeyFieldName: String
+  partitionKeyFieldName: String,
+  logger: RollbarLogger
 ) extends Producer[T] with StreamUsage {
 
   import KinesisProducer._
 
   private[this] val kinesisClient = config.kinesisClient
+
+  private[this] val logger_ =
+    logger
+      .withKeyValue("class", this.getClass.getName)
+      .withKeyValue("stream", config.streamName)
 
   setup()
 
@@ -77,15 +83,15 @@ case class KinesisProducer[T](
           if (attempts > MaxRetries) {
             // log errors
             val errorMessage = s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published"
-            Logger.error(errorMessage)
+            logger_.error(errorMessage)
             response.getRecords.asScala.foreach { resultEntry =>
               if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
-                Logger.error(s"[FlowKinesisError] $resultEntry")
+                logger_.error(s"[FlowKinesisError] $resultEntry")
             }
 
             sys.error(errorMessage)
           } else {
-            Logger.warn(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
+            logger_.warn(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
               s"Retrying $attempts/$MaxRetries ...")
 
             val toRetries =
@@ -97,7 +103,7 @@ case class KinesisProducer[T](
         }
 
       case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
-        Logger.warn(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
+        logger_.warn(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
         waitBeforeRetry(attempts)
         publishBatchRetries(entries, attempts + 1)
 
@@ -139,7 +145,7 @@ case class KinesisProducer[T](
 
           case e: Throwable => {
             val msg = s"FlowKinesisError [${this.getClass.getName}] Stream[$config.streamName] could not be created. Error Message: ${e.getMessage}"
-            Logger.warn(msg)
+            logger_.warn(msg, e)
             e.printStackTrace(System.err)
             sys.error(msg)
           }

@@ -5,20 +5,21 @@ import com.amazonaws.services.kinesis.model.{PutRecordsRequest, PutRecordsResult
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
+import io.flow.log.RollbarLogger
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
-import org.scalatest.mockito.MockitoSugar
 import org.scalatest.Inspectors
+import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import play.api.libs.json.Json
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Random
 
 class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
 
   private[this] val Utf8: String = "UTF-8"
+  private[this] val logger = new RollbarLogger(rollbar = None, attributes = Map.empty, legacyMessage = None)
 
   def generateEvent(bytes: Int = 200): TestObjectUpserted = {
     val base = Factories.makeTestObjectUpserted().copy(testObject = TestObject(""))
@@ -44,7 +45,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
-    val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id")
+    val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
 
     val event = generateEvent()
     producer.publishBatch(Seq(event))
@@ -69,7 +70,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
-    val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id")
+    val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
 
     val events = {
       (1 to 500).map(_ => generateEvent()) ++

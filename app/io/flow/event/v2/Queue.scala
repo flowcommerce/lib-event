@@ -3,6 +3,7 @@ package io.flow.event.v2
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.flow.event.Record
+import io.flow.log.RollbarLogger
 import io.flow.play.util.Config
 import io.flow.util.StreamNames
 import javax.inject.Inject
@@ -63,7 +64,8 @@ trait Producer[T] {
   */
 class DefaultQueue @Inject() (
   config: Config,
-  creds: AWSCreds
+  creds: AWSCreds,
+  logger: RollbarLogger
 ) extends Queue with StreamUsage {
 
   import scala.collection.JavaConverters._
@@ -80,7 +82,8 @@ class DefaultQueue @Inject() (
     KinesisProducer(
       streamConfig[T],
       numberShards,
-      partitionKeyFieldName
+      partitionKeyFieldName,
+      logger
     )
   }
 
@@ -92,7 +95,8 @@ class DefaultQueue @Inject() (
     consumers.add(
       KinesisConsumer(
         streamConfig[T],
-        f
+        f,
+        logger
       )
     )
   }
