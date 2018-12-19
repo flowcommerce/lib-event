@@ -4,7 +4,7 @@ import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.play.clients.MockConfig
-import io.flow.play.util.{Config, IdGenerator}
+import io.flow.util.{Config, IdGenerator}
 import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
@@ -22,7 +22,7 @@ trait Helpers {
   private[this] val eventIdGenerator = IdGenerator("evt")
 
   def eventuallyInNSeconds[T](n: Int)(f: => T): T = {
-    eventually(timeout(Span(n, Seconds))) {
+    eventually(timeout(Span(n.toLong, Seconds))) {
       f
     }
   }
@@ -55,7 +55,7 @@ trait Helpers {
     // println(s"  --> consumeUntil for eventId[$eventId]")
     q.consume[T] { rec =>
       // println(s"  --> record eventId[${rec.eventId}]")
-      all ++ rec
+      all ++= rec
     }
 
     Await.result(
@@ -64,7 +64,7 @@ trait Helpers {
           Thread.sleep(100)
         }
       },
-      FiniteDuration(timeoutSeconds, "seconds")
+      FiniteDuration(timeoutSeconds.toLong, "seconds")
     )
 
     q.shutdown

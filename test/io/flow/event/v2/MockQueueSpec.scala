@@ -91,7 +91,10 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
     // produce an element every 3 ms
     val producer = q.producer[TestEvent]()
     val producerRunnable = new Runnable {
-      override def run(): Unit = publishTestObject(producer, testObject)
+      override def run(): Unit = {
+        publishTestObject(producer, testObject)
+        ()
+      }
     }
     Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(producerRunnable, 0, 100, TimeUnit.MILLISECONDS)
 

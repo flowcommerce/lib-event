@@ -27,9 +27,9 @@ trait Queue {
     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   ): Unit
 
-  def shutdown()
+  def shutdown(): Unit
 
-  def shutdownConsumers()
+  def shutdownConsumers(): Unit
 
   /** Return the name of this stream [if it were on AWS] */
   def streamName[T: TypeTag]: String = {
@@ -99,6 +99,7 @@ class DefaultQueue @Inject() (
         logger
       )
     )
+    ()
   }
 
   override def shutdownConsumers(): Unit = {

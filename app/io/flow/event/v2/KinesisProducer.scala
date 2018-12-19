@@ -63,7 +63,7 @@ case class KinesisProducer[T](
           val newBatch = new util.ArrayList[PutRecordsRequestEntry](MaxBatchRecordsCount)
           batchedRecords += newBatch
           newBatch.add(record)
-          (1L, data.length, newBatch)
+          (1L, data.length.toLong, newBatch)
         } else {
           currentBatch.add(record)
           (currentSize + 1, newBytesSize, currentBatch)
@@ -125,7 +125,7 @@ case class KinesisProducer[T](
   /**
     * Sets up the stream name in ec2, either an error or Unit
     **/
-  private[this] def setup() {
+  private[this] def setup(): Unit = {
     Try {
       kinesisClient.createStream(
         new CreateStreamRequest()
