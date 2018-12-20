@@ -33,7 +33,7 @@ trait PollActorBatch extends Actor with ActorLogging {
   @silent def accepts(record: Record): Boolean = true
 
   /**
-    * Allows the retrieved [[Seq[Record]] to be transformed (filtered, modified, ...) before being processed
+    * Allows the retrieved Seq[Record] to be transformed (filtered, modified, ...) before being processed
     * This function is called right after [[accepts]] and offers more flexibility
     */
   def transform(records: Seq[Record]): Seq[Record] = records
