@@ -23,6 +23,7 @@ trait StreamUsage {
     val usage = usageMap.getOrElseUpdate(streamName, StreamUsed(streamName, eventClass))
     if (!usage.produced) {
       usageMap.put(streamName, usage.copy(produced = true))
+      ()
     }
   }
 
@@ -30,6 +31,7 @@ trait StreamUsage {
     val usage = usageMap.getOrElseUpdate(streamName, StreamUsed(streamName, eventClass))
     if (!usage.consumed) {
       usageMap.put(streamName, usage.copy(consumed = true))
+      ()
     }
   }
 

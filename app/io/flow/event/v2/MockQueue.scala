@@ -43,6 +43,7 @@ class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage 
     val consumer = RunningConsumer(s, f, pollTime)
     markConsumesStream(streamName[T], typeOf[T])
     consumers.add(consumer)
+    ()
   }
 
   override def shutdown(): Unit = {
@@ -82,10 +83,11 @@ case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, poll
   private val ses = Executors.newSingleThreadScheduledExecutor()
   ses.scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
 
-  def shutdown(): Unit =
+  def shutdown(): Unit = {
     // use shutdownNow in case the provided action comes with a while-sleep loop.
     ses.shutdownNow()
-
+    ()
+  }
 }
 
 case class MockStream(streamName: String, debug: Boolean = false, logger: RollbarLogger) {
@@ -102,6 +104,7 @@ case class MockStream(streamName: String, debug: Boolean = false, logger: Rollba
   def publish(record: Record): Unit = {
     logDebug { s"publishing record: ${record.js}" }
     pendingRecords.add(record)
+    ()
   }
 
   /**

@@ -10,7 +10,7 @@ import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, 
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
-import io.flow.play.util.FlowEnvironment
+import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
 
 import scala.collection.JavaConverters._
@@ -47,7 +47,7 @@ case class KinesisConsumer (
         .withInitialLeaseTableWriteCapacity(dynamoCapacity)
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
         .withCleanupLeasesUponShardCompletion(true)
-        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
+        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.toLong)
         .withMaxRecords(config.maxRecords)
         .withMetricsLevel(MetricsLevel.DETAILED)
         .withFailoverTimeMillis(10000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10

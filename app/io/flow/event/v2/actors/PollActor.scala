@@ -17,6 +17,7 @@ trait PollActor extends PollActorBatch {
 
   override def processBatch(records: Seq[Record]): Unit = {
     records.map(r => Try(process(r)))
+    ()
   }
 
   def process(record: Record): Unit

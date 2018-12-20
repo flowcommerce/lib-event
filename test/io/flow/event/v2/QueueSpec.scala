@@ -1,15 +1,10 @@
 package io.flow.event.v2
 
-import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
-import io.flow.lib.event.test.v0.models.json._
-import java.util.UUID
-
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
 
 class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
 
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   /* Disable in travis - dont' want to share credentials there
   "can publish and consume an event" in {

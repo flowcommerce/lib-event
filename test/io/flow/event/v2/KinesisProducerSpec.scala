@@ -33,7 +33,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
   "KinesisProducerSpec should provide a helper function to create event with json payload of a specific size" in {
     val sizes: Seq[Int] = Seq(200, 500, 1024, 1024 * 1024, 10 * 1024 * 1024)
     forAll(sizes) { bytes =>
-      Json.stringify(Json.toJson(generateEvent(bytes))).getBytes(Utf8) must have size bytes
+      Json.stringify(Json.toJson(generateEvent(bytes))).getBytes(Utf8) must have size bytes.toLong
     }
   }
 
@@ -42,7 +42,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     val kinesisClient = mock[AmazonKinesis]
     val mockPutResults = mock[PutRecordsResult]
     when(mockPutResults.getFailedRecordCount).thenReturn(0)
-    when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
+    when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
@@ -67,7 +67,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     val kinesisClient = mock[AmazonKinesis]
     val mockPutResults = mock[PutRecordsResult]
     when(mockPutResults.getFailedRecordCount).thenReturn(0)
-    when(kinesisClient.putRecords(any())).thenReturn(mockPutResults)
+    when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)

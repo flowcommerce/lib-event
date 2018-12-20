@@ -1,11 +1,11 @@
 package io.flow.event.v2.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
+import com.github.ghik.silencer.silent
+import io.flow.akka.SafeReceive
 import io.flow.event.Record
 import io.flow.event.v2.{MockQueue, Queue}
 import io.flow.log.RollbarLogger
-import io.flow.play.actors.ErrorHandler
-import play.api.Logger
 
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS, SECONDS}
 import scala.reflect.runtime.universe.TypeTag
@@ -18,7 +18,7 @@ import scala.util.{Failure, Success, Try}
   *   - implement required methods
   *   - call start(...) w/ the name of the execution context to use
   */
-trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
+trait PollActorBatch extends Actor with ActorLogging {
 
   /**
     * Called once for every batch read off the stream
@@ -30,7 +30,7 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
     * we then call process(record). Override this method to
     * filter specific records to process
     */
-  def accepts(record: Record): Boolean = true
+  @silent def accepts(record: Record): Boolean = true
 
   /**
     * Allows the retrieved [[Seq[Record]] to be transformed (filtered, modified, ...) before being processed
@@ -63,9 +63,7 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
     )
   }
 
-  override def receive: Receive = {
-    case msg: Any => logUnhandledMessage(msg)
-  }
+  override def receive: Receive = SafeReceive(PartialFunction.empty)
 
   private def processWithErrorHandler(records: Seq[Record]): Unit = {
     Try {
@@ -73,7 +71,7 @@ trait PollActorBatch extends Actor with ActorLogging with ErrorHandler {
       if (transformedRecords.nonEmpty)
         processBatch(transformedRecords)
     } match {
-      case Success(res) => // no-op
+      case Success(_) => // no-op
       case Failure(ex) => {
         ex.printStackTrace(System.err)
 

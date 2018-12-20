@@ -3,7 +3,6 @@ package io.flow.event
 import play.api.libs.json.{JsValue, Json}
 import org.joda.time.DateTime
 import org.joda.time.format.ISODateTimeFormat.dateTimeParser
-import scala.reflect.runtime.universe._
 
 object Record {
 
