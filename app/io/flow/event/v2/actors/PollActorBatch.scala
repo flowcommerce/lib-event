@@ -44,6 +44,8 @@ trait PollActorBatch extends Actor with ActorLogging {
 
   def logger: RollbarLogger
 
+  private implicit lazy val configuredRollbar: RollbarLogger = logger.fingerprint("PollActorBatch").withKeyValue("class", getClass.getName)
+
   private[this] def defaultDuration = {
     queue match {
       case _:  MockQueue => FiniteDuration(20, MILLISECONDS)
