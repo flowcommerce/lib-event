@@ -1,10 +1,17 @@
 package io.flow.event.v2
 
+import io.flow.play.clients.ConfigModule
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
+import play.api.Application
+import play.api.inject.guice.GuiceApplicationBuilder
 
 class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
 
+  override def fakeApplication(): Application =
+    new GuiceApplicationBuilder()
+      .bindings(new ConfigModule)
+      .build()
 
   /* Disable in travis - dont' want to share credentials there
   "can publish and consume an event" in {

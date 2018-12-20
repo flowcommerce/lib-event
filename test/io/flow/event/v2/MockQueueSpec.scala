@@ -6,9 +6,12 @@ import java.util.concurrent.atomic.{AtomicReference, LongAdder}
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
 import io.flow.log.RollbarLogger
+import io.flow.play.clients.ConfigModule
 import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
+import play.api.Application
+import play.api.inject.guice.GuiceApplicationBuilder
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
@@ -17,6 +20,11 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
 
   private[this] val testObject = TestObject(id = "1")
   private[this] val logger = new RollbarLogger(rollbar = None, attributes = Map.empty, legacyMessage = None)
+
+  override def fakeApplication(): Application =
+    new GuiceApplicationBuilder()
+      .bindings(new ConfigModule)
+      .build()
 
   "all" in {
     val q = new MockQueue(logger)

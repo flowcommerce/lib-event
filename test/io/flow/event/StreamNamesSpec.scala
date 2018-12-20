@@ -2,15 +2,23 @@ package io.flow.event
 
 import com.github.ghik.silencer.silent
 import io.flow.lib.event.test.v0.models.TestEvent
+import io.flow.play.clients.ConfigModule
 import io.flow.play.util.FlowEnvironment
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
+import play.api.Application
+import play.api.inject.guice.GuiceApplicationBuilder
 
 @silent class StreamNamesSpec extends PlaySpec with GuiceOneAppPerSuite {
 
   private[this] val dev = StreamNames(FlowEnvironment.Development)
   private[this] val ws = StreamNames(FlowEnvironment.Workstation)
   private[this] val prod = StreamNames(FlowEnvironment.Production)
+
+  override def fakeApplication(): Application =
+    new GuiceApplicationBuilder()
+      .bindings(new ConfigModule)
+      .build()
 
   "validate a service with single name" in {
     dev.json("io.flow.sample.v0.models.Event") must equal(Some("development_workstation.sample.v0.event.json"))
