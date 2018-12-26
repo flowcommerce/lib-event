@@ -18,7 +18,7 @@ lazy val root = project
       "io.flow" %% "lib-play-play26" % "0.5.23",
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.3",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
-      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.7",
+      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.8",
       "org.mockito" % "mockito-core" % "2.23.4" % Test,
       "io.flow" %% "lib-test-utils" % "0.0.22" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.3.0"),
