@@ -83,15 +83,15 @@ case class KinesisProducer[T](
           if (attempts > MaxRetries) {
             // log errors
             val errorMessage = s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published"
-            logger_.error(errorMessage)
+            logger_.warn(errorMessage)
             response.getRecords.asScala.foreach { resultEntry =>
               if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
-                logger_.error(s"[FlowKinesisError] $resultEntry")
+                logger_.info(s"[FlowKinesisError] $resultEntry")
             }
 
             sys.error(errorMessage)
           } else {
-            logger_.warn(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
+            logger_.info(s"[FlowKinesisWarn] $failedRecordCount/${entries.size()} failed to be published. " +
               s"Retrying $attempts/$MaxRetries ...")
 
             val toRetries =
@@ -103,7 +103,7 @@ case class KinesisProducer[T](
         }
 
       case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
-        logger_.warn(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
+        logger_.info(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
         waitBeforeRetry(attempts)
         publishBatchRetries(entries, attempts + 1)
 
