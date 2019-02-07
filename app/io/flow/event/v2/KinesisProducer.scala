@@ -11,6 +11,7 @@ import play.api.libs.json.{Json, Writes}
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
+import scala.util.control.NonFatal
 import scala.util.{Failure, Random, Success, Try}
 
 case class KinesisProducer[T](
@@ -132,12 +133,16 @@ case class KinesisProducer[T](
           .withStreamName(config.streamName)
           .withShardCount(numberShards)
       )
-    } match {
-      case Success(_) => {
-        // All good
-      }
-
-      case Failure(ex) => {
+    } map { _ =>
+      // set retention to three days to recover from Flow service outages lasting longer than the default 24 hours
+      // e.g. when a service comes back online it can recover the last 3 days of events from the Kinesis stream
+      kinesisClient.increaseStreamRetentionPeriod(
+        new IncreaseStreamRetentionPeriodRequest()
+          .withStreamName(config.streamName)
+          .withRetentionPeriodHours(72)
+      )
+    } recover {
+      case NonFatal(ex) => {
         ex match {
           case _: ResourceInUseException => {
             // do nothing... already exists, ignore
