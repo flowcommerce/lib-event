@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 import java.util
 
 import com.amazonaws.services.kinesis.model._
+import com.github.ghik.silencer.silent
 import io.flow.event.Util
 import io.flow.log.RollbarLogger
 import play.api.libs.json.{Json, Writes}
@@ -126,14 +127,14 @@ case class KinesisProducer[T](
   /**
     * Sets up the stream name in ec2, either an error or Unit
     **/
-  private[this] def setup(): Unit = {
+  @silent private[this] def setup(): Unit = {
     Try {
       kinesisClient.createStream(
         new CreateStreamRequest()
           .withStreamName(config.streamName)
           .withShardCount(numberShards)
       )
-    } map { _ =>
+    }.map { _ =>
       // set retention to three days to recover from Flow service outages lasting longer than the default 24 hours
       // e.g. when a service comes back online it can recover the last 3 days of events from the Kinesis stream
       kinesisClient.increaseStreamRetentionPeriod(
@@ -141,7 +142,7 @@ case class KinesisProducer[T](
           .withStreamName(config.streamName)
           .withRetentionPeriodHours(72)
       )
-    } recover {
+    }.recover {
       case NonFatal(ex) => {
         ex match {
           case _: ResourceInUseException => {
