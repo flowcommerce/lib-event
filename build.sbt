@@ -1,4 +1,3 @@
-import play.sbt.PlayScala._
 import sbt.Keys.scalacOptions
 
 name := "lib-event-play26"

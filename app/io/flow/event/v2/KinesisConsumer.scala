@@ -49,7 +49,7 @@ case class KinesisConsumer (
         .withCleanupLeasesUponShardCompletion(true)
         .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.toLong)
         .withMaxRecords(config.maxRecords)
-        .withMetricsLevel(MetricsLevel.DETAILED)
+        .withMetricsLevel(MetricsLevel.NONE)
         .withFailoverTimeMillis(10000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
     ).kinesisClient(config.kinesisClient)
     .build()

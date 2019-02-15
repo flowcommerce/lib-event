@@ -1,6 +1,7 @@
 package io.flow.event
 
 import io.flow.play.util.FlowEnvironment
+
 import scala.reflect.runtime.universe._
 
 @deprecated("Deprecated in favour of lib-util (io.flow.util.*)", "0.3.45")
