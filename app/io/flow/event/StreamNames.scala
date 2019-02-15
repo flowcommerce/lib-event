@@ -1,6 +1,5 @@
 package io.flow.event
 
-import io.flow.play.util.FlowEnvironment
 import io.flow.util.FlowEnvironment
 
 import scala.reflect.runtime.universe._
