@@ -9,16 +9,16 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionI
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.event.Record
-import io.flow.play.util.FlowEnvironment
+import io.flow.log.RollbarLogger
+import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
-import play.api.Logger
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
 
 case class KinesisConsumer (
   config: StreamConfig,
-  f: Seq[Record] => Unit
+  f: Seq[Record] => Unit,
+  logger: RollbarLogger
 ) extends StreamUsage {
 
   private[this] val workerId = Seq(
@@ -35,7 +35,7 @@ case class KinesisConsumer (
   }
 
   private[this] val worker = new Worker.Builder()
-    .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f))
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f, logger))
     .config(
       new KinesisClientLibConfiguration(
         config.appName,
@@ -47,20 +47,24 @@ case class KinesisConsumer (
         .withInitialLeaseTableWriteCapacity(dynamoCapacity)
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
         .withCleanupLeasesUponShardCompletion(true)
-        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis)
+        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.toLong)
         .withMaxRecords(config.maxRecords)
-        .withMetricsLevel(MetricsLevel.DETAILED)
+        .withMetricsLevel(MetricsLevel.NONE)
         .withFailoverTimeMillis(10000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
     ).kinesisClient(config.kinesisClient)
     .build()
 
   private[this] val exec = Executors.newSingleThreadExecutor()
 
-  Logger.info(s"[${this.getClass.getName}] Creating KinesisConsumer for app[${config.appName}] stream[${config.streamName}] workerId[$workerId]")
+  logger
+    .withKeyValue("class", this.getClass.getName)
+    .withKeyValue("stream", config.streamName)
+    .withKeyValue("worker_id", workerId)
+    .info("Started")
 
   exec.execute(worker)
 
-  def shutdown(implicit ec: ExecutionContext): Unit = {
+  def shutdown(): Unit = {
     exec.shutdown()
   }
 
@@ -69,11 +73,12 @@ case class KinesisConsumer (
 case class KinesisRecordProcessorFactory(
   config: StreamConfig,
   workerId: String,
-  f: Seq[Record] => Unit
+  f: Seq[Record] => Unit,
+  logger: RollbarLogger
 ) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config, workerId, f)
+    KinesisRecordProcessor(config, workerId, f, logger)
   }
 
 }
@@ -81,15 +86,23 @@ case class KinesisRecordProcessorFactory(
 case class KinesisRecordProcessor[T](
   config: StreamConfig,
   workerId: String,
-  f: Seq[Record] => Unit
+  f: Seq[Record] => Unit,
+  logger: RollbarLogger
 ) extends IRecordProcessor {
 
-  override def initialize(input: InitializationInput): Unit = {
-    Logger.info(s"KinesisRecordProcessor workerId[$workerId] initializing stream[${config.streamName}] shard[${input.getShardId}]")
-  }
+  private val logger_ = logger
+    .withKeyValue("class", this.getClass.getName)
+    .withKeyValue("stream", config.streamName)
+    .withKeyValue("worker_id", workerId)
+
+  override def initialize(input: InitializationInput): Unit =
+    logger_
+      .withKeyValue("shard_id", input.getShardId)
+      .info("Initializing")
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    Logger.info(s"KinesisRecordProcessor workerId[$workerId] processRecords  stream[${config.streamName}] starting")
+    logger_.info("Processing records")
+
     val kinesisRecords = input.getRecords.asScala
     val flowRecords = input.getRecords.asScala.map { record =>
       val buffer = record.getData
@@ -104,15 +117,13 @@ case class KinesisRecordProcessor[T](
 
     f(flowRecords)
 
-
     kinesisRecords.lastOption.foreach { record =>
-      Logger.info(s"KinesisRecordProcessor workerId[$workerId] checkpoint(${record.getSequenceNumber})")
+      logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
       input.getCheckpointer.checkpoint(record)
     }
   }
 
-  override def shutdown(input: ShutdownInput): Unit = {
-    Logger.info(s"shutting down stream[${config.streamName}] reason[${input.getShutdownReason}]")
-  }
+  override def shutdown(input: ShutdownInput): Unit =
+    logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
 
 }
