@@ -3,7 +3,7 @@ package io.flow.event
 import com.github.ghik.silencer.silent
 import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.play.clients.ConfigModule
-import io.flow.play.util.FlowEnvironment
+import io.flow.util.FlowEnvironment
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
