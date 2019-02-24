@@ -5,3 +5,7 @@ code:
       generators:
         play_2_x_json: test/generated
         play_2_4_mock_client: test/generated
+attributes:
+  generators:
+    "*":
+      scala_generator.time_library: java

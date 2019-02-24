@@ -6,12 +6,12 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import javax.inject.{Inject, Singleton}
-import org.joda.time.DateTime
 import play.api.libs.json.{JsValue, Writes}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
+import java.time.Instant
 
 @Singleton
 class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage {
@@ -161,7 +161,7 @@ case class MockProducer[T](stream: MockStream, debug: Boolean = false, logger: R
 
   private def publish(event: JsValue): Unit = {
     val r= Record.fromJsValue(
-      arrivalTimestamp = DateTime.now,
+      arrivalTimestamp = Instant.now,
       js = event
     )
 

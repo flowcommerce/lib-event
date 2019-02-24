@@ -17,13 +17,13 @@ package io.flow.lib.event.test.v0.mock {
 
     def makeTestObjectDeleted(): io.flow.lib.event.test.v0.models.TestObjectDeleted = io.flow.lib.event.test.v0.models.TestObjectDeleted(
       eventId = Factories.randomString(),
-      timestamp = org.joda.time.DateTime.now,
+      timestamp = java.time.Instant.now,
       id = Factories.randomString()
     )
 
     def makeTestObjectUpserted(): io.flow.lib.event.test.v0.models.TestObjectUpserted = io.flow.lib.event.test.v0.models.TestObjectUpserted(
       eventId = Factories.randomString(),
-      timestamp = org.joda.time.DateTime.now,
+      timestamp = java.time.Instant.now,
       testObject = io.flow.lib.event.test.v0.mock.Factories.makeTestObject()
     )
 

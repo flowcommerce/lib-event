@@ -1,20 +1,20 @@
 package io.flow.event
 
 import play.api.libs.json.{JsValue, Json}
-import org.joda.time.DateTime
-import org.joda.time.format.ISODateTimeFormat.dateTimeParser
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 
 object Record {
 
-  def fromByteArray(arrivalTimestamp: DateTime, value: Array[Byte]): Record = {
+  def fromByteArray(arrivalTimestamp: Instant, value: Array[Byte]): Record = {
     fromJsValue(arrivalTimestamp, Json.parse(value))
   }
 
-  def fromJsValue(arrivalTimestamp: DateTime, js: JsValue): Record = {
+  def fromJsValue(arrivalTimestamp: Instant, js: JsValue): Record = {
     Record(
       eventId = Util.mustParseString(js, "event_id"),
-      timestamp = dateTimeParser.parseDateTime(
-        Util.mustParseString(js, "timestamp")
+      timestamp = DateTimeFormatter.ISO_INSTANT.parse(
+        Util.mustParseString(js, "timestamp"), Instant.from(_)
       ),
       js = js,
       arrivalTimestamp = arrivalTimestamp
@@ -25,8 +25,8 @@ object Record {
 
 case class Record(
   eventId: String,
-  timestamp: DateTime,
-  arrivalTimestamp: DateTime,
+  timestamp: Instant,
+  arrivalTimestamp: Instant,
   js: JsValue
 ){
   /** Returns the APIBuilder discriminator of the event */
@@ -35,5 +35,5 @@ case class Record(
 
 case class Message(
   message: String,
-  arrivalTimestamp: DateTime
+  arrivalTimestamp: Instant
 )

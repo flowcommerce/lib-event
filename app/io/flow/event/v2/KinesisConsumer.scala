@@ -11,7 +11,6 @@ import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.util.FlowEnvironment
-import org.joda.time.DateTime
 
 import scala.collection.JavaConverters._
 
@@ -110,7 +109,7 @@ case class KinesisRecordProcessor[T](
       buffer.get(bytes)
 
       Record.fromByteArray(
-        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+        arrivalTimestamp = record.getApproximateArrivalTimestamp.toInstant,
         value = bytes
       )
     }

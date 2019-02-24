@@ -35,13 +35,13 @@ package io.flow.lib.event.test.v0.models {
 
   final case class TestObjectDeleted(
     eventId: String,
-    timestamp: _root_.org.joda.time.DateTime,
+    timestamp: _root_.java.time.Instant,
     id: String
   ) extends TestEvent
 
   final case class TestObjectUpserted(
     eventId: String,
-    timestamp: _root_.org.joda.time.DateTime,
+    timestamp: _root_.java.time.Instant,
     testObject: io.flow.lib.event.test.v0.models.TestObject
   ) extends TestEvent
 
@@ -67,38 +67,8 @@ package io.flow.lib.event.test.v0.models {
     import play.api.libs.json.Writes
     import play.api.libs.functional.syntax._
     import io.flow.lib.event.test.v0.models.json._
-
-    private[v0] implicit val jsonReadsUUID = __.read[String].map(java.util.UUID.fromString)
-
-    private[v0] implicit val jsonWritesUUID = new Writes[java.util.UUID] {
-      def writes(x: java.util.UUID) = JsString(x.toString)
-    }
-
-    private[v0] implicit val jsonReadsJodaDateTime = __.read[String].map { str =>
-      import org.joda.time.format.ISODateTimeFormat.dateTimeParser
-      dateTimeParser.parseDateTime(str)
-    }
-
-    private[v0] implicit val jsonWritesJodaDateTime = new Writes[org.joda.time.DateTime] {
-      def writes(x: org.joda.time.DateTime) = {
-        import org.joda.time.format.ISODateTimeFormat.dateTime
-        val str = dateTime.print(x)
-        JsString(str)
-      }
-    }
-
-    private[v0] implicit val jsonReadsJodaLocalDate = __.read[String].map { str =>
-      import org.joda.time.format.ISODateTimeFormat.dateParser
-      dateParser.parseLocalDate(str)
-    }
-
-    private[v0] implicit val jsonWritesJodaLocalDate = new Writes[org.joda.time.LocalDate] {
-      def writes(x: org.joda.time.LocalDate) = {
-        import org.joda.time.format.ISODateTimeFormat.date
-        val str = date.print(x)
-        JsString(str)
-      }
-    }
+    import play.api.libs.json.Writes._
+    import play.api.libs.json.Reads._
 
     implicit def jsonReadsLibEventTestTestObject: play.api.libs.json.Reads[TestObject] = {
       (__ \ "id").read[String].map { x => new TestObject(id = x) }
@@ -121,7 +91,7 @@ package io.flow.lib.event.test.v0.models {
     implicit def jsonReadsLibEventTestTestObjectDeleted: play.api.libs.json.Reads[TestObjectDeleted] = {
       for {
         eventId <- (__ \ "event_id").read[String]
-        timestamp <- (__ \ "timestamp").read[_root_.org.joda.time.DateTime]
+        timestamp <- (__ \ "timestamp").read[_root_.java.time.Instant]
         id <- (__ \ "id").read[String]
       } yield TestObjectDeleted(eventId, timestamp, id)
     }
@@ -129,7 +99,7 @@ package io.flow.lib.event.test.v0.models {
     def jsObjectTestObjectDeleted(obj: io.flow.lib.event.test.v0.models.TestObjectDeleted): play.api.libs.json.JsObject = {
       play.api.libs.json.Json.obj(
         "event_id" -> play.api.libs.json.JsString(obj.eventId),
-        "timestamp" -> play.api.libs.json.JsString(_root_.org.joda.time.format.ISODateTimeFormat.dateTime.print(obj.timestamp)),
+        "timestamp" -> play.api.libs.json.JsString(obj.timestamp.toString),
         "id" -> play.api.libs.json.JsString(obj.id)
       )
     }
@@ -137,7 +107,7 @@ package io.flow.lib.event.test.v0.models {
     implicit def jsonReadsLibEventTestTestObjectUpserted: play.api.libs.json.Reads[TestObjectUpserted] = {
       for {
         eventId <- (__ \ "event_id").read[String]
-        timestamp <- (__ \ "timestamp").read[_root_.org.joda.time.DateTime]
+        timestamp <- (__ \ "timestamp").read[_root_.java.time.Instant]
         testObject <- (__ \ "test_object").read[io.flow.lib.event.test.v0.models.TestObject]
       } yield TestObjectUpserted(eventId, timestamp, testObject)
     }
@@ -145,7 +115,7 @@ package io.flow.lib.event.test.v0.models {
     def jsObjectTestObjectUpserted(obj: io.flow.lib.event.test.v0.models.TestObjectUpserted): play.api.libs.json.JsObject = {
       play.api.libs.json.Json.obj(
         "event_id" -> play.api.libs.json.JsString(obj.eventId),
-        "timestamp" -> play.api.libs.json.JsString(_root_.org.joda.time.format.ISODateTimeFormat.dateTime.print(obj.timestamp)),
+        "timestamp" -> play.api.libs.json.JsString(obj.timestamp.toString),
         "test_object" -> jsObjectTestObject(obj.testObject)
       )
     }
@@ -190,11 +160,11 @@ package io.flow.lib.event.test.v0 {
     import Core._
 
     object Core {
-      implicit def pathBindableDateTimeIso8601(implicit stringBinder: QueryStringBindable[String]): PathBindable[_root_.org.joda.time.DateTime] = ApibuilderPathBindable(ApibuilderTypes.dateTimeIso8601)
-      implicit def queryStringBindableDateTimeIso8601(implicit stringBinder: QueryStringBindable[String]): QueryStringBindable[_root_.org.joda.time.DateTime] = ApibuilderQueryStringBindable(ApibuilderTypes.dateTimeIso8601)
+      implicit def pathBindableDateTimeIso8601(implicit stringBinder: QueryStringBindable[String]): PathBindable[_root_.java.time.Instant] = ApibuilderPathBindable(ApibuilderTypes.dateTimeIso8601)
+      implicit def queryStringBindableDateTimeIso8601(implicit stringBinder: QueryStringBindable[String]): QueryStringBindable[_root_.java.time.Instant] = ApibuilderQueryStringBindable(ApibuilderTypes.dateTimeIso8601)
 
-      implicit def pathBindableDateIso8601(implicit stringBinder: QueryStringBindable[String]): PathBindable[_root_.org.joda.time.LocalDate] = ApibuilderPathBindable(ApibuilderTypes.dateIso8601)
-      implicit def queryStringBindableDateIso8601(implicit stringBinder: QueryStringBindable[String]): QueryStringBindable[_root_.org.joda.time.LocalDate] = ApibuilderQueryStringBindable(ApibuilderTypes.dateIso8601)
+      implicit def pathBindableDateIso8601(implicit stringBinder: QueryStringBindable[String]): PathBindable[_root_.java.time.LocalDate] = ApibuilderPathBindable(ApibuilderTypes.dateIso8601)
+      implicit def queryStringBindableDateIso8601(implicit stringBinder: QueryStringBindable[String]): QueryStringBindable[_root_.java.time.LocalDate] = ApibuilderQueryStringBindable(ApibuilderTypes.dateIso8601)
     }
 
     trait ApibuilderTypeConverter[T] {
@@ -217,16 +187,16 @@ package io.flow.lib.event.test.v0 {
     }
 
     object ApibuilderTypes {
-      import org.joda.time.{format, DateTime, LocalDate}
+      import java.time.{Instant, LocalDate}
 
-      val dateTimeIso8601: ApibuilderTypeConverter[DateTime] = new ApibuilderTypeConverter[DateTime] {
-        override def convert(value: String): DateTime = format.ISODateTimeFormat.dateTimeParser.parseDateTime(value)
-        override def convert(value: DateTime): String = format.ISODateTimeFormat.dateTime.print(value)
-        override def example: DateTime = DateTime.now
+      val dateTimeIso8601: ApibuilderTypeConverter[Instant] = new ApibuilderTypeConverter[Instant] {
+        override def convert(value: String): Instant = Instant.parse(value)
+        override def convert(value: Instant): String = value.toString
+        override def example: Instant = Instant.now
       }
 
       val dateIso8601: ApibuilderTypeConverter[LocalDate] = new ApibuilderTypeConverter[LocalDate] {
-        override def convert(value: String): LocalDate = format.ISODateTimeFormat.yearMonthDay.parseLocalDate(value)
+        override def convert(value: String): LocalDate = LocalDate.parse(value)
         override def convert(value: LocalDate): String = value.toString
         override def example: LocalDate = LocalDate.now
       }
