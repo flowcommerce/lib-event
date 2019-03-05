@@ -171,6 +171,6 @@ object KinesisProducer {
   // - 100 kB as an arbitrary margin to avoid errors (2% of 5MB - not a big difference)
   val MaxBatchRecordsSizeBytes: Long = 5L * 1000 * 1000 - 100L * 1000
 
-  // Let's really retry!
-  val MaxRetries = 64
+  // Let's really retry! - Yes it is arbitrary
+  val MaxRetries = 128
 }
