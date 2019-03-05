@@ -113,7 +113,8 @@ case class KinesisProducer[T](
     }
   }
 
-  private def waitBeforeRetry(attempts: Int): Unit = Thread.sleep((2 + Random.nextInt(2)) * attempts * 1000L)
+  // uniform 1s to 5s
+  private def waitBeforeRetry(attempts: Int): Unit = Thread.sleep(1000L + Random.nextInt(4000).toLong)
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
@@ -171,5 +172,5 @@ object KinesisProducer {
   val MaxBatchRecordsSizeBytes: Long = 5L * 1000 * 1000 - 100L * 1000
 
   // Let's really retry!
-  val MaxRetries = 10
+  val MaxRetries = 64
 }
