@@ -99,14 +99,14 @@ case class KinesisProducer[T](
             val toRetries =
               entries.asScala.zip(response.getRecords.asScala)
                 .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
-            waitBeforeRetry(attempts)
+            waitBeforeRetry()
             publishBatchRetries(toRetries.asJava, attempts + 1)
           }
         }
 
       case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
         logger_.info(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
-        waitBeforeRetry(attempts)
+        waitBeforeRetry()
         publishBatchRetries(entries, attempts + 1)
 
       case Failure(ex) => throw ex
@@ -114,7 +114,7 @@ case class KinesisProducer[T](
   }
 
   // uniform 1s to 5s
-  private def waitBeforeRetry(attempts: Int): Unit = Thread.sleep(1000L + Random.nextInt(4000).toLong)
+  private def waitBeforeRetry(): Unit = Thread.sleep(1000L + Random.nextInt(4000).toLong)
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
