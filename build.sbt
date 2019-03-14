@@ -1,13 +1,13 @@
 import sbt.Keys.scalacOptions
 
-name := "lib-event-play26"
+name := "lib-event-javatime"
 
 organization := "io.flow"
 
 scalaVersion in ThisBuild := "2.12.8"
 
-val libSuffix1 = ""
-val libSuffix2 = "-play26"
+val libSuffix1 = "-javatime"
+val libSuffix2 = "-javatime"
 
 lazy val root = project
   .in(file("."))

@@ -5,13 +5,13 @@ import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.play.clients.MockConfig
 import io.flow.util.{Config, IdGenerator}
-import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
 import play.api.Application
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
+import java.time.Instant
 
 trait Helpers {
 
@@ -37,7 +37,7 @@ trait Helpers {
     producer.publish(
       TestObjectUpserted(
         eventId = eventId,
-        timestamp = DateTime.now,
+        timestamp = Instant.now,
         testObject = o
       )
     )
