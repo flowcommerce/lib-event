@@ -123,7 +123,9 @@ case class KinesisRecordProcessor[T](
     }
   }
 
-  override def shutdown(input: ShutdownInput): Unit =
+  override def shutdown(input: ShutdownInput): Unit = {
     logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
+    input.getCheckpointer.checkpoint()
+  }
 
 }
