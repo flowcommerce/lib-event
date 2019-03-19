@@ -15,7 +15,6 @@ import org.joda.time.DateTime
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.util.Try
 import scala.util.control.NonFatal
 
 case class KinesisConsumer (
