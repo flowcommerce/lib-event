@@ -157,5 +157,5 @@ case class KinesisRecordProcessor[T](
 
 object KinesisRecordProcessor {
   // Yes, it is arbitrary
-  private val MaxRetries = 32
+  private val MaxRetries = 16
 }
