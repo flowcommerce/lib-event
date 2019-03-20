@@ -14,6 +14,7 @@ import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
 
 import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
 
 case class KinesisConsumer (
   config: StreamConfig,
@@ -125,7 +126,15 @@ case class KinesisRecordProcessor[T](
 
   override def shutdown(input: ShutdownInput): Unit = {
     logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
-    input.getCheckpointer.checkpoint()
+    try {
+      input.getCheckpointer.checkpoint()
+    } catch {
+      // for instance lease has expired
+      case NonFatal(e) =>
+        logger_
+          .withKeyValue("reason", input.getShutdownReason.toString)
+          .error("[FlowKinesisError] Error while checkpointing when shutting down Kinesis consumer. Cannot checkpoint.", e)
+    }
   }
 
 }
