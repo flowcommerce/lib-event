@@ -14,6 +14,7 @@ import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
 
 import scala.collection.JavaConverters._
+import scala.util.control.NonFatal
 
 case class KinesisConsumer (
   config: StreamConfig,
