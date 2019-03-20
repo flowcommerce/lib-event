@@ -13,10 +13,7 @@ import io.flow.log.RollbarLogger
 import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
 
-import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.util.Try
-import scala.util.control.NonFatal
 
 case class KinesisConsumer (
   config: StreamConfig,
@@ -93,8 +90,6 @@ case class KinesisRecordProcessor[T](
   logger: RollbarLogger
 ) extends IRecordProcessor {
 
-  import KinesisRecordProcessor._
-
   private val logger_ = logger
     .withKeyValue("class", this.getClass.getName)
     .withKeyValue("stream", config.streamName)
@@ -120,31 +115,11 @@ case class KinesisRecordProcessor[T](
       )
     }
 
-    executeRetry(flowRecords, 0)
+    f(flowRecords)
 
     kinesisRecords.lastOption.foreach { record =>
       logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
       input.getCheckpointer.checkpoint(record)
-    }
-  }
-
-  @tailrec
-  private def executeRetry(records: Seq[Record], retries: Int): Unit = {
-    try {
-      f(records)
-    } catch {
-      case NonFatal(e) =>
-        if (retries > MaxRetries) {
-          logger_
-            .withKeyValue("retries", retries)
-            .error(s"[FlowKinesisError] Error while processing records after $MaxRetries", e)
-          throw e
-        } else {
-          logger_
-            .withKeyValue("retries", retries)
-            .warn(s"[FlowKinesisWarn] Error while processing records (retry $retries/$MaxRetries). Retrying...", e)
-          executeRetry(records, retries + 1)
-        }
     }
   }
 
@@ -161,8 +136,4 @@ case class KinesisRecordProcessor[T](
     }
   }
 
-}
-
-object KinesisRecordProcessor {
-  private val MaxRetries = 100
 }
