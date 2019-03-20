@@ -153,6 +153,7 @@ case class KinesisRecordProcessor[T](
     try {
       input.getCheckpointer.checkpoint()
     } catch {
+      // for instance lease has expired
       case NonFatal(e) =>
         logger_
           .withKeyValue("reason", input.getShutdownReason.toString)
