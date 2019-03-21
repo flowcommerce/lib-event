@@ -15,6 +15,7 @@ import org.joda.time.DateTime
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 case class KinesisConsumer (
@@ -129,10 +130,9 @@ case class KinesisRecordProcessor[T](
 
   @tailrec
   private def executeRetry(records: Seq[Record], retries: Int): Unit = {
-    try {
-      f(records)
-    } catch {
-      case NonFatal(e) =>
+    Try(f(records)) match {
+      case Success(_) =>
+      case Failure(NonFatal(e)) =>
         if (retries > MaxRetries) {
           logger_
             .withKeyValue("retries", retries)
@@ -144,6 +144,8 @@ case class KinesisRecordProcessor[T](
             .warn(s"[FlowKinesisWarn] Error while processing records (retry $retries/$MaxRetries). Retrying...", e)
           executeRetry(records, retries + 1)
         }
+      case Failure(e) => throw e
+
     }
   }
 
