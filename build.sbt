@@ -17,12 +17,12 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% s"lib-play$libSuffix2" % "0.5.42",
+      "io.flow" %% s"lib-play$libSuffix2" % "0.5.43",
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.3",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.8",
       "org.mockito" % "mockito-core" % "2.23.4" % Test,
-      "io.flow" %% s"lib-test-utils$libSuffix1" % "0.0.37" % Test,
+      "io.flow" %% s"lib-test-utils$libSuffix1" % "0.0.38" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.3.0"),
       "com.github.ghik" %% "silencer-lib" % "1.3.0" % Provided
     ),
