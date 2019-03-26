@@ -154,7 +154,7 @@ case class KinesisRecordProcessor[T](
         if (retries >= MaxRetries) {
           logger_.error(s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts", e)
         } else {
-          logger_.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt $retries of $MaxRetries.", e)
+          logger_.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries.", e)
           Thread.sleep(BackoffTimeInMillis)
           handleCheckpoint(checkpointer, retries + 1)
         }
