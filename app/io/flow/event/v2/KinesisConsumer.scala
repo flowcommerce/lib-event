@@ -17,6 +17,7 @@ import org.joda.time.DateTime
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 case class KinesisConsumer (
@@ -116,7 +117,7 @@ case class KinesisRecordProcessor[T](
     logger_.info("Processing records")
 
     val kinesisRecords = input.getRecords.asScala
-    
+
     if (kinesisRecords.nonEmpty) {
       val flowRecords = kinesisRecords.map { record =>
         val buffer = record.getData
@@ -140,10 +141,9 @@ case class KinesisRecordProcessor[T](
 
   @tailrec
   private def executeRetry(records: Seq[Record], sequenceNumbers: Seq[String], retries: Int = 0): Unit = {
-    try {
-      f(records)
-    } catch {
-      case NonFatal(e) =>
+    Try(f(records)) match {
+      case Success(_) =>
+      case Failure(NonFatal(e)) =>
         if (retries >= MaxRetries) {
           val size = records.size
           logger_
@@ -157,6 +157,7 @@ case class KinesisRecordProcessor[T](
           Thread.sleep(BackoffTimeInMillis)
           executeRetry(records, sequenceNumbers, retries + 1)
         }
+      case Failure(e) => throw e
     }
   }
 
