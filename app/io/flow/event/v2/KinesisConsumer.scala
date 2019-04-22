@@ -4,8 +4,10 @@ import java.net.InetAddress
 import java.util.UUID
 import java.util.concurrent.Executors
 
+import com.amazonaws.services.kinesis.clientlibrary.exceptions._
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, Worker}
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, ShutdownReason, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.event.Record
@@ -15,7 +17,6 @@ import org.joda.time.DateTime
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 case class KinesisConsumer (
@@ -86,6 +87,12 @@ case class KinesisRecordProcessorFactory(
 
 }
 
+object KinesisRecordProcessor {
+  // Yes, it is arbitrary
+  private val MaxRetries = 8
+  private val BackoffTimeInMillis = 3000L
+}
+
 case class KinesisRecordProcessor[T](
   config: StreamConfig,
   workerId: String,
@@ -109,61 +116,83 @@ case class KinesisRecordProcessor[T](
     logger_.info("Processing records")
 
     val kinesisRecords = input.getRecords.asScala
-    val flowRecords = input.getRecords.asScala.map { record =>
-      val buffer = record.getData
-      val bytes = Array.fill[Byte](buffer.remaining)(0)
-      buffer.get(bytes)
+    
+    if (kinesisRecords.nonEmpty) {
+      val flowRecords = kinesisRecords.map { record =>
+        val buffer = record.getData
+        val bytes = Array.fill[Byte](buffer.remaining)(0)
+        buffer.get(bytes)
 
-      Record.fromByteArray(
-        arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
-        value = bytes
-      )
+        Record.fromByteArray(
+          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+          value = bytes
+        )
+      }
+      val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
+      executeRetry(flowRecords, sequenceNumbers)
     }
-
-    executeRetry(flowRecords, 0)
 
     kinesisRecords.lastOption.foreach { record =>
       logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
-      input.getCheckpointer.checkpoint(record)
+      handleCheckpoint(input.getCheckpointer)
     }
   }
 
   @tailrec
-  private def executeRetry(records: Seq[Record], retries: Int): Unit = {
+  private def executeRetry(records: Seq[Record], sequenceNumbers: Seq[String], retries: Int = 0): Unit = {
     try {
       f(records)
     } catch {
       case NonFatal(e) =>
-        if (retries > MaxRetries) {
+        if (retries >= MaxRetries) {
+          val size = records.size
           logger_
             .withKeyValue("retries", retries)
-            .error(s"[FlowKinesisError] Error while processing records after $MaxRetries", e)
-          throw e
+            .error(s"[FlowKinesisError] Error while processing records after $MaxRetries attempts. " +
+              s"$size records are skipped. Sequence numbers: ${sequenceNumbers.mkString(", ")}", e)
         } else {
           logger_
             .withKeyValue("retries", retries)
             .warn(s"[FlowKinesisWarn] Error while processing records (retry $retries/$MaxRetries). Retrying...", e)
-          executeRetry(records, retries + 1)
+          Thread.sleep(BackoffTimeInMillis)
+          executeRetry(records, sequenceNumbers, retries + 1)
         }
     }
   }
 
   override def shutdown(input: ShutdownInput): Unit = {
     logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
-    try {
-      input.getCheckpointer.checkpoint()
-    } catch {
-      // for instance lease has expired
-      case NonFatal(e) =>
-        logger_
-          .withKeyValue("reason", input.getShutdownReason.toString)
-          .error("[FlowKinesisError] Error while checkpointing when shutting down Kinesis consumer. Cannot checkpoint.", e)
+    if (input.getShutdownReason == ShutdownReason.TERMINATE) {
+      handleCheckpoint(input.getCheckpointer)
     }
   }
 
-}
+  private def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, retries: Int = 0): Unit = {
 
-object KinesisRecordProcessor {
-  // Yes, it is arbitrary
-  private val MaxRetries = 8
+    import KinesisRecordProcessor._
+    try {
+      checkpointer.checkpoint()
+    }  catch {
+      // Ignore handleCheckpoint if the processor instance has been shutdown (fail over).
+      // i.e. Can't update handleCheckpoint - instance doesn't hold the lease for this shard.
+      case e: ShutdownException =>
+        logger_.info("[FlowKinesisInfo] Caught error while checkpointing. Skipping checkpoint.", e)
+
+      // Backoff and re-attempt handleCheckpoint upon transient failures
+      // ThrottlingException | KinesisClientLibDependencyException
+      case e: KinesisClientLibRetryableException =>
+        if (retries >= MaxRetries) {
+          logger_.error(s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts", e)
+        } else {
+          logger_.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries.", e)
+          Thread.sleep(BackoffTimeInMillis)
+          handleCheckpoint(checkpointer, retries + 1)
+        }
+
+      // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).
+      case e: InvalidStateException =>
+        logger_.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
+    }
+  }
+
 }
