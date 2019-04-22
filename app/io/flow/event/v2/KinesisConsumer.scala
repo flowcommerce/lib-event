@@ -130,9 +130,10 @@ case class KinesisRecordProcessor[T](
 
   @tailrec
   private def executeRetry(records: Seq[Record], retries: Int): Unit = {
-    Try(f(records)) match {
-      case Success(_) =>
-      case Failure(NonFatal(e)) =>
+    try {
+      f(records)
+    } catch {
+      case NonFatal(e) =>
         if (retries > MaxRetries) {
           logger_
             .withKeyValue("retries", retries)
@@ -144,8 +145,6 @@ case class KinesisRecordProcessor[T](
             .warn(s"[FlowKinesisWarn] Error while processing records (retry $retries/$MaxRetries). Retrying...", e)
           executeRetry(records, retries + 1)
         }
-      case Failure(e) => throw e
-
     }
   }
 
