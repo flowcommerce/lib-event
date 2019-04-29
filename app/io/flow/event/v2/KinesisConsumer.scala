@@ -4,9 +4,9 @@ import java.net.InetAddress
 import java.util.UUID
 import java.util.concurrent.Executors
 
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.exceptions._
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, ShutdownReason, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
@@ -14,7 +14,10 @@ import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.util.FlowEnvironment
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
 case class KinesisConsumer (
   config: StreamConfig,
@@ -97,6 +100,8 @@ case class KinesisRecordProcessor[T](
   logger: RollbarLogger
 ) extends IRecordProcessor {
 
+  import KinesisRecordProcessor._
+
   private val logger_ = logger
     .withKeyValue("class", this.getClass.getName)
     .withKeyValue("stream", config.streamName)
@@ -111,22 +116,47 @@ case class KinesisRecordProcessor[T](
     logger_.info("Processing records")
 
     val kinesisRecords = input.getRecords.asScala
-    val flowRecords = input.getRecords.asScala.map { record =>
-      val buffer = record.getData
-      val bytes = Array.fill[Byte](buffer.remaining)(0)
-      buffer.get(bytes)
 
-      Record.fromByteArray(
-        arrivalTimestamp = record.getApproximateArrivalTimestamp.toInstant,
-        value = bytes
-      )
+    if (kinesisRecords.nonEmpty) {
+      val flowRecords = kinesisRecords.map { record =>
+        val buffer = record.getData
+        val bytes = Array.fill[Byte](buffer.remaining)(0)
+        buffer.get(bytes)
+
+        Record.fromByteArray(
+          arrivalTimestamp = record.getApproximateArrivalTimestamp.toInstant,
+          value = bytes
+        )
+      }
+      val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
+      executeRetry(flowRecords, sequenceNumbers)
     }
-
-    f(flowRecords)
 
     kinesisRecords.lastOption.foreach { record =>
       logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
       handleCheckpoint(input.getCheckpointer)
+    }
+  }
+
+  @tailrec
+  private def executeRetry(records: Seq[Record], sequenceNumbers: Seq[String], retries: Int = 0): Unit = {
+    Try(f(records)) match {
+      case Success(_) =>
+      case Failure(NonFatal(e)) =>
+        if (retries >= MaxRetries) {
+          val size = records.size
+          logger_
+            .withKeyValue("retries", retries)
+            .error(s"[FlowKinesisError] Error while processing records after $MaxRetries attempts. " +
+              s"$size records are skipped. Sequence numbers: ${sequenceNumbers.mkString(", ")}", e)
+        } else {
+          logger_
+            .withKeyValue("retries", retries)
+            .warn(s"[FlowKinesisWarn] Error while processing records (retry $retries/$MaxRetries). Retrying...", e)
+          Thread.sleep(BackoffTimeInMillis)
+          executeRetry(records, sequenceNumbers, retries + 1)
+        }
+      case Failure(e) => throw e
     }
   }
 
