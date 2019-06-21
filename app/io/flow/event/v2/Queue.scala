@@ -114,7 +114,6 @@ class DefaultQueue @Inject() (
 
   protected[v2] def streamConfig[T: TypeTag] = {
     val sn = streamName[T]
-    println(s"*******************$sn")
     DefaultStreamConfig(
       creds,
       appName = appName,
