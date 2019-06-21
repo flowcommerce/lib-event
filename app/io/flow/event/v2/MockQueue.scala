@@ -18,7 +18,7 @@ import scala.reflect.runtime.universe._
 class MockQueue @Inject()(
   logger: RollbarLogger
 )(
-  implicit interval: FiniteDuration = FiniteDuration(20, MILLISECONDS)
+  implicit pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
 ) extends Queue with StreamUsage {
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
@@ -33,7 +33,7 @@ class MockQueue @Inject()(
   }
 
   private val ses = Executors.newSingleThreadScheduledExecutor()
-  ses.scheduleWithFixedDelay(runnable, interval.length, interval.length, interval.unit)
+  ses.scheduleWithFixedDelay(runnable, pollTime.length, pollTime.length, pollTime.unit)
 
   def withDebugging(): Unit = {
     debug.set(true)
@@ -49,7 +49,11 @@ class MockQueue @Inject()(
     MockProducer(stream[T], debug = debug.get, logger)
   }
 
-  // pollTime is ignored in the mock
+  /**
+    * @param pollTime Ignored in the mock as it is set once at the queue level
+    *                 and cannot be verified in the mock per stream to minimize
+    *                 resource usage in tests
+    */
   @silent override def consume[T: TypeTag](
     f: Seq[Record] => Unit,
     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
