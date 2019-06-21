@@ -15,6 +15,7 @@ import play.api.inject.guice.GuiceApplicationBuilder
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with MockitoSugar {
 
@@ -65,7 +66,9 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
     val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
     val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
 
-    val q = new MockQueue(logger)(1.nano)
+    val q = new MockQueue(logger) {
+      override def pollTime: FiniteDuration = 1.nano
+    }
     val producer = q.producer[TestEvent]()
 
     val count = new LongAdder()
@@ -152,6 +155,15 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
 
     q.clear()
     q.stream[TestEvent].pending mustBe empty
+  }
+
+  "is injectable" in {
+    Try {
+      app.injector.instanceOf[MockQueue]
+    } match {
+      case Success(_) => // no-op
+      case Failure(ex) => sys.error(s"Failed to inject MockQueue: ${ex.getMessage}")
+    }
   }
 
 }

@@ -17,9 +17,8 @@ import java.time.Instant
 @Singleton
 class MockQueue @Inject()(
   logger: RollbarLogger
-)(
-  implicit pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
-) extends Queue with StreamUsage {
+)extends Queue with StreamUsage {
+  def pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
