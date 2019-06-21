@@ -56,7 +56,7 @@ case class KinesisConsumer (
       .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
   }
 
-  private[this] val worker = new Worker.Builder()
+  private[this] lazy val worker = new Worker.Builder()
     .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f, logger))
     .config(kclConfig)
     .kinesisClient(config.kinesisClient)
