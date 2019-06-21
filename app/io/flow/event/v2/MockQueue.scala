@@ -66,6 +66,7 @@ class MockQueue @Inject()(
   }
 
   override def shutdown(): Unit = {
+    // use shutdownNow in case the provided action comes with a while-sleep loop.
     ses.shutdownNow()
     shutdownConsumers()
     streams.clear()
