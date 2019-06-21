@@ -23,11 +23,10 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
       val rollbar = RollbarLogger.SimpleLogger
 
       val queue = new DefaultQueue(config, creds, rollbar)
+      val streamConfig = queue.streamConfig[TestEvent]
 
-      val consumer = queue.mkConsumer[TestEvent](_ => ())
-
-      consumer.kclConfig.getMaxRecords mustBe 1234
-      consumer.kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+      streamConfig.toKclConfig.getMaxRecords mustBe 1234
+      streamConfig.toKclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
     }
   }
 

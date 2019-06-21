@@ -1,18 +1,25 @@
 package io.flow.event.v2
 
+import java.net.InetAddress
+import java.util.UUID
+
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentialsProvider
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
+import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
-import io.flow.util.Naming
+import io.flow.util.{FlowEnvironment, Naming}
+
 import scala.reflect.runtime.universe._
 
 trait StreamConfig {
-  val appName: String
-  val streamName: String
-  val maxRecords: Option[Int]
-  val idleTimeBetweenReadsInMillis: Option[Int]
-  val awsCredentialsProvider: AWSCredentialsProvider
-  val eventClass: Type
+  def appName: String
+  def streamName: String
+  def maxRecords: Option[Int]
+  def idleTimeBetweenReadsInMillis: Option[Int]
+  def awsCredentialsProvider: AWSCredentialsProvider
+  def eventClass: Type
+  def workerId: String
 
   def kinesisClient: AmazonKinesis
 
@@ -22,6 +29,8 @@ trait StreamConfig {
       appName = appName
     )
   }
+
+  def toKclConfig: KinesisClientLibConfiguration
 }
 
 case class DefaultStreamConfig(
@@ -44,5 +53,35 @@ case class DefaultStreamConfig(
           .withConnectionTTL(600000)
       ).
       build()
+  }
+
+  override def toKclConfig = {
+    new KinesisClientLibConfiguration(
+      appName,
+      streamName,
+      awsCredentialsProvider,
+      workerId
+    ).withTableName(dynamoTableName)
+      .withInitialLeaseTableReadCapacity(dynamoCapacity)
+      .withInitialLeaseTableWriteCapacity(dynamoCapacity)
+      .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+      .withCleanupLeasesUponShardCompletion(true)
+      .withIdleTimeBetweenReadsInMillis(idleTimeBetweenReadsInMillis.fold(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS)(_.toLong))
+      .withMaxRecords(maxRecords.getOrElse(1000))
+      .withMetricsLevel(MetricsLevel.NONE)
+      .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+  }
+
+  override def workerId = Seq(
+    appName,
+    InetAddress.getLocalHost.getCanonicalHostName,
+    UUID.randomUUID.toString
+  ).mkString(":")
+
+  private[this] val dynamoCapacity = {
+    FlowEnvironment.Current match {
+      case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
+      case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
+    }
   }
 }

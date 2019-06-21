@@ -1,18 +1,14 @@
 package io.flow.event.v2
 
-import java.net.InetAddress
-import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.amazonaws.services.kinesis.clientlibrary.exceptions._
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration, ShutdownReason, Worker}
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ShutdownReason, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
-import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
-import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
 
 import scala.annotation.tailrec
@@ -26,39 +22,10 @@ case class KinesisConsumer (
   logger: RollbarLogger
 ) extends StreamUsage {
 
-  private[this] val workerId = Seq(
-    config.appName,
-    InetAddress.getLocalHost.getCanonicalHostName,
-    UUID.randomUUID.toString
-  ).mkString(":")
 
-  private[this] val dynamoCapacity = {
-    FlowEnvironment.Current match {
-      case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
-      case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
-    }
-  }
-
-  protected[v2] val kclConfig = {
-    new KinesisClientLibConfiguration(
-      config.appName,
-      config.streamName,
-      config.awsCredentialsProvider,
-      workerId
-    ).withTableName(config.dynamoTableName)
-      .withInitialLeaseTableReadCapacity(dynamoCapacity)
-      .withInitialLeaseTableWriteCapacity(dynamoCapacity)
-      .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-      .withCleanupLeasesUponShardCompletion(true)
-      .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.fold(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS)(_.toLong))
-      .withMaxRecords(config.maxRecords.getOrElse(1000))
-      .withMetricsLevel(MetricsLevel.NONE)
-      .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
-  }
-
-  private[this] lazy val worker = new Worker.Builder()
-    .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f, logger))
-    .config(kclConfig)
+  private[this] val worker = new Worker.Builder()
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, logger))
+    .config(config.toKclConfig)
     .kinesisClient(config.kinesisClient)
     .build()
 
@@ -67,7 +34,7 @@ case class KinesisConsumer (
   logger
     .withKeyValue("class", this.getClass.getName)
     .withKeyValue("stream", config.streamName)
-    .withKeyValue("worker_id", workerId)
+    .withKeyValue("worker_id", config.workerId)
     .info("Started")
 
   exec.execute(worker)
@@ -80,13 +47,12 @@ case class KinesisConsumer (
 
 case class KinesisRecordProcessorFactory(
   config: StreamConfig,
-  workerId: String,
   f: Seq[Record] => Unit,
   logger: RollbarLogger
 ) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config, workerId, f, logger)
+    KinesisRecordProcessor(config, f, logger)
   }
 
 }
@@ -99,7 +65,6 @@ object KinesisRecordProcessor {
 
 case class KinesisRecordProcessor[T](
   config: StreamConfig,
-  workerId: String,
   f: Seq[Record] => Unit,
   logger: RollbarLogger
 ) extends IRecordProcessor {
@@ -109,7 +74,7 @@ case class KinesisRecordProcessor[T](
   private val logger_ = logger
     .withKeyValue("class", this.getClass.getName)
     .withKeyValue("stream", config.streamName)
-    .withKeyValue("worker_id", workerId)
+    .withKeyValue("worker_id", config.workerId)
 
   override def initialize(input: InitializationInput): Unit =
     logger_

@@ -92,15 +92,15 @@ class DefaultQueue @Inject() (
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   ): Unit = {
     markConsumesStream(streamName[T], typeOf[T])
-    consumers.add(mkConsumer(f))
+    consumers.add(
+      KinesisConsumer(
+        streamConfig[T],
+        f,
+        logger
+      )
+    )
     ()
   }
-
-  protected[v2] def mkConsumer[T: TypeTag](f: Seq[Record] => Unit) = KinesisConsumer(
-    streamConfig[T],
-    f,
-    logger
-  )
 
   override def shutdownConsumers(): Unit = {
     // synchronized to avoid a consumer being registered "in between" shutdown and clear
@@ -112,7 +112,7 @@ class DefaultQueue @Inject() (
 
   override def shutdown(): Unit = shutdownConsumers()
 
-  private[this] def streamConfig[T: TypeTag] = {
+  protected[v2] def streamConfig[T: TypeTag] = {
     val sn = streamName[T]
     println(s"*******************$sn")
     DefaultStreamConfig(
