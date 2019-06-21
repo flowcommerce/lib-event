@@ -15,7 +15,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
       .bindings(new ConfigModule)
       .build()
 
-  "Passed maxRecords and idleTimeBetweenReadsMs config values to KCL Config" in {
+  "Passes maxRecords and idleTimeBetweenReadsMs config values to KCL Config" in {
     withConfig { config =>
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxRecords", "1234")
       config.set("development_workstation.lib.event.test.v0.test_event.json.idleTimeBetweenReadsMs", "4321")
