@@ -117,7 +117,7 @@ class DefaultQueue @Inject() (
     DefaultStreamConfig(
       creds,
       appName = appName,
-      streamName = streamName[T],
+      streamName = sn,
       eventClass = typeOf[T],
       maxRecords = config.optionalInt(s"$sn.maxRecords"),
       idleTimeBetweenReadsInMillis = config.optionalInt(s"$sn.idleTimeBetweenReadsMs"),
