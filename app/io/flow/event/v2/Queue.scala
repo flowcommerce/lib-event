@@ -120,7 +120,8 @@ class DefaultQueue @Inject() (
       streamName = sn,
       eventClass = typeOf[T],
       maxRecords = config.optionalInt(s"$sn.maxRecords"),
-      idleTimeBetweenReadsInMillis = config.optionalInt(s"$sn.idleTimeBetweenReadsMs"),
+      idleMillisBetweenCalls = config.optionalLong(s"$sn.idleMillisBetweenCalls"),
+      idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),
     )
   }
 }

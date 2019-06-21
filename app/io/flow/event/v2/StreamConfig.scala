@@ -16,7 +16,8 @@ trait StreamConfig {
   def appName: String
   def streamName: String
   def maxRecords: Option[Int]
-  def idleTimeBetweenReadsInMillis: Option[Int]
+  def idleMillisBetweenCalls: Option[Long]
+  def idleTimeBetweenReadsInMillis: Option[Long]
   def awsCredentialsProvider: AWSCredentialsProvider
   def eventClass: Type
   def workerId: String
@@ -38,7 +39,8 @@ case class DefaultStreamConfig(
   appName: String,
   streamName: String,
   maxRecords: Option[Int],   // number of records in each fetch
-  idleTimeBetweenReadsInMillis: Option[Int],
+  idleMillisBetweenCalls: Option[Long],
+  idleTimeBetweenReadsInMillis: Option[Long],
   eventClass: Type
 ) extends StreamConfig {
 
@@ -66,7 +68,8 @@ case class DefaultStreamConfig(
       .withInitialLeaseTableWriteCapacity(dynamoCapacity)
       .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
       .withCleanupLeasesUponShardCompletion(true)
-      .withIdleTimeBetweenReadsInMillis(idleTimeBetweenReadsInMillis.fold(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS)(_.toLong))
+      .withIdleMillisBetweenCalls(idleMillisBetweenCalls.getOrElse(1500L))
+      .withIdleTimeBetweenReadsInMillis(idleTimeBetweenReadsInMillis.getOrElse(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS))
       .withMaxRecords(maxRecords.getOrElse(1000))
       .withMetricsLevel(MetricsLevel.NONE)
       .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10

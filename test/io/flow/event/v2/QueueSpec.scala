@@ -1,5 +1,6 @@
 package io.flow.event.v2
 
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
 import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
@@ -18,15 +19,23 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
   "Passes maxRecords and idleTimeBetweenReadsMs config values to KCL Config" in {
     withConfig { config =>
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxRecords", "1234")
+      config.set("development_workstation.lib.event.test.v0.test_event.json.idleMillisBetweenCalls", "5678")
       config.set("development_workstation.lib.event.test.v0.test_event.json.idleTimeBetweenReadsMs", "4321")
       val creds = new AWSCreds(config)
       val rollbar = RollbarLogger.SimpleLogger
 
       val queue = new DefaultQueue(config, creds, rollbar)
-      val streamConfig = queue.streamConfig[TestEvent]
+      val kclConfig = queue.streamConfig[TestEvent].toKclConfig
 
-      streamConfig.toKclConfig.getMaxRecords mustBe 1234
-      streamConfig.toKclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+      kclConfig.getMaxRecords mustBe 1234
+      kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+
+      val rff = kclConfig.getRecordsFetcherFactory
+      rff mustBe a[SimpleRecordsFetcherFactory]
+      val field = classOf[SimpleRecordsFetcherFactory].getDeclaredField("idleMillisBetweenCalls")
+      field.setAccessible(true)
+      field.get(rff) mustBe 5678
+
     }
   }
 
