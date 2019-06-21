@@ -55,7 +55,7 @@ case class DefaultStreamConfig(
       build()
   }
 
-  override def toKclConfig = {
+  override lazy val toKclConfig = {
     new KinesisClientLibConfiguration(
       appName,
       streamName,
@@ -72,7 +72,7 @@ case class DefaultStreamConfig(
       .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
   }
 
-  override def workerId = Seq(
+  override lazy val workerId = Seq(
     appName,
     InetAddress.getLocalHost.getCanonicalHostName,
     UUID.randomUUID.toString
