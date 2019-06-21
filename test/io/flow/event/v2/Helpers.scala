@@ -4,7 +4,7 @@ import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.play.clients.MockConfig
-import io.flow.util.{Config, IdGenerator}
+import io.flow.util.IdGenerator
 import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
@@ -27,7 +27,7 @@ trait Helpers {
     }
   }
 
-  def withConfig[T](f: Config => T)(implicit app: Application): T = {
+  def withConfig[T](f: MockConfig => T)(implicit app: Application): T = {
     config.set("name", "lib-event-test")
     f(config)
   }

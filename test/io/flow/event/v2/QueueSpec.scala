@@ -1,5 +1,7 @@
 package io.flow.event.v2
 
+import io.flow.lib.event.test.v0.models.TestEvent
+import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
@@ -12,6 +14,22 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     new GuiceApplicationBuilder()
       .bindings(new ConfigModule)
       .build()
+
+  "Passed maxRecords and idleTimeBetweenReadsMs config values to KCL Config" in {
+    withConfig { config =>
+      config.set("development_workstation.lib.event.test.v0.test_event.json.maxRecords", "1234")
+      config.set("development_workstation.lib.event.test.v0.test_event.json.idleTimeBetweenReadsMs", "4321")
+      val creds = new AWSCreds(config)
+      val rollbar = RollbarLogger.SimpleLogger
+
+      val queue = new DefaultQueue(config, creds, rollbar)
+
+      val consumer = queue.mkConsumer[TestEvent](_ => ())
+
+      consumer.kclConfig.getMaxRecords mustBe 1234
+      consumer.kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+    }
+  }
 
   /* Disable in travis - dont' want to share credentials there
   "can publish and consume an event" in {

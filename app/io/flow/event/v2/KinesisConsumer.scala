@@ -39,24 +39,27 @@ case class KinesisConsumer (
     }
   }
 
+  protected[v2] val kclConfig = {
+    new KinesisClientLibConfiguration(
+      config.appName,
+      config.streamName,
+      config.awsCredentialsProvider,
+      workerId
+    ).withTableName(config.dynamoTableName)
+      .withInitialLeaseTableReadCapacity(dynamoCapacity)
+      .withInitialLeaseTableWriteCapacity(dynamoCapacity)
+      .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+      .withCleanupLeasesUponShardCompletion(true)
+      .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.fold(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS)(_.toLong))
+      .withMaxRecords(config.maxRecords.getOrElse(1000))
+      .withMetricsLevel(MetricsLevel.NONE)
+      .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+  }
+
   private[this] val worker = new Worker.Builder()
     .recordProcessorFactory(KinesisRecordProcessorFactory(config, workerId, f, logger))
-    .config(
-      new KinesisClientLibConfiguration(
-        config.appName,
-        config.streamName,
-        config.awsCredentialsProvider,
-        workerId
-      ).withTableName(config.dynamoTableName)
-        .withInitialLeaseTableReadCapacity(dynamoCapacity)
-        .withInitialLeaseTableWriteCapacity(dynamoCapacity)
-        .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-        .withCleanupLeasesUponShardCompletion(true)
-        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.toLong)
-        .withMaxRecords(config.maxRecords)
-        .withMetricsLevel(MetricsLevel.NONE)
-        .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
-    ).kinesisClient(config.kinesisClient)
+    .config(kclConfig)
+    .kinesisClient(config.kinesisClient)
     .build()
 
   private[this] val exec = Executors.newSingleThreadExecutor()

@@ -9,8 +9,8 @@ import scala.reflect.runtime.universe._
 trait StreamConfig {
   val appName: String
   val streamName: String
-  val maxRecords: Int
-  val idleTimeBetweenReadsInMillis: Int
+  val maxRecords: Option[Int]
+  val idleTimeBetweenReadsInMillis: Option[Int]
   val awsCredentialsProvider: AWSCredentialsProvider
   val eventClass: Type
 
@@ -28,8 +28,8 @@ case class DefaultStreamConfig(
   awsCredentialsProvider: AWSCreds,
   appName: String,
   streamName: String,
-  maxRecords: Int = 1000,   // number of records in each fetch
-  idleTimeBetweenReadsInMillis: Int = 1000,
+  maxRecords: Option[Int],   // number of records in each fetch
+  idleTimeBetweenReadsInMillis: Option[Int],
   eventClass: Type
 ) extends StreamConfig {
 
