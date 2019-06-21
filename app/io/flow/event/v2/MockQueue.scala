@@ -3,6 +3,7 @@ package io.flow.event.v2
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
 
+import com.github.ghik.silencer.silent
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import javax.inject.{Inject, Singleton}
@@ -14,12 +15,25 @@ import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
 
 @Singleton
-class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage {
+class MockQueue @Inject()(
+  logger: RollbarLogger
+)(
+  implicit interval: FiniteDuration = FiniteDuration(20, MILLISECONDS)
+) extends Queue with StreamUsage {
 
   private[this] val streams = new ConcurrentHashMap[String, MockStream]()
   private[this] val consumers = new ConcurrentLinkedQueue[RunningConsumer]()
 
   private[this] val debug: AtomicBoolean = new AtomicBoolean(false)
+
+  private val runnable = new Runnable() {
+    override def run(): Unit = {
+      consumers.asScala.foreach(_.run())
+    }
+  }
+
+  private val ses = Executors.newSingleThreadScheduledExecutor()
+  ses.scheduleWithFixedDelay(runnable, interval.length, interval.length, interval.unit)
 
   def withDebugging(): Unit = {
     debug.set(true)
@@ -35,18 +49,20 @@ class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage 
     MockProducer(stream[T], debug = debug.get, logger)
   }
 
-  override def consume[T: TypeTag](
+  // pollTime is ignored in the mock
+  @silent override def consume[T: TypeTag](
     f: Seq[Record] => Unit,
-    pollTime: FiniteDuration = FiniteDuration(20, MILLISECONDS)
+    pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   ): Unit = {
     val s = stream[T]
-    val consumer = RunningConsumer(s, f, pollTime)
+    val consumer = RunningConsumer(s, f)
     markConsumesStream(streamName[T], typeOf[T])
     consumers.add(consumer)
     ()
   }
 
   override def shutdown(): Unit = {
+    ses.shutdownNow()
     shutdownConsumers()
     streams.clear()
   }
@@ -59,10 +75,9 @@ class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage 
   }
 
   def stream[T: TypeTag]: MockStream = {
-    streams.computeIfAbsent(streamName[T],
-      new java.util.function.Function[String, MockStream] {
-        override def apply(s: String) = MockStream(s, debug = debug.get, logger)
-      }
+    streams.computeIfAbsent(
+      streamName[T],
+      (s: String) => MockStream(s, debug = debug.get, logger)
     )
   }
 
@@ -74,20 +89,17 @@ class MockQueue @Inject()(logger: RollbarLogger) extends Queue with StreamUsage 
 
 }
 
-case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit, pollTime: FiniteDuration) {
+case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit) {
 
-  private val runnable = new Runnable() {
-    override def run(): Unit = stream.consume().foreach(e => action(Seq(e)))
+  def run(): Unit = {
+    stream.consume().foreach(e => action(Seq(e)))
   }
-
-  private val ses = Executors.newSingleThreadScheduledExecutor()
-  ses.scheduleWithFixedDelay(runnable, 0, pollTime.length, pollTime.unit)
 
   def shutdown(): Unit = {
-    // use shutdownNow in case the provided action comes with a while-sleep loop.
-    ses.shutdownNow()
-    ()
+    stream.clearConsumed()
+    stream.clearPending()
   }
+
 }
 
 case class MockStream(streamName: String, debug: Boolean = false, logger: RollbarLogger) {
