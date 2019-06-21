@@ -65,7 +65,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
     val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
     val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
 
-    val q = new MockQueue(logger)
+    val q = new MockQueue(logger)(1.nano)
     val producer = q.producer[TestEvent]()
 
     val count = new LongAdder()
@@ -73,7 +73,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
     // consume: start [[consumersSize]] consumers consuming concurrently
     (1 to consumersPoolSize).foreach { _ =>
       Future {
-        q.consume[TestEvent](_ => count.increment(), 1.nano)
+        q.consume[TestEvent](_ => count.increment())
       } (consumerContext)
     }
 
