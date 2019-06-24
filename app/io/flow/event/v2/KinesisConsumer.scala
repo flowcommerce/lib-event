@@ -2,6 +2,7 @@ package io.flow.event.v2
 
 import java.util.concurrent.Executors
 
+import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.services.kinesis.clientlibrary.exceptions._
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
@@ -17,6 +18,7 @@ import scala.util.control.NonFatal
 
 case class KinesisConsumer (
   config: StreamConfig,
+  creds: AWSCredentialsProviderChain,
   f: Seq[Record] => Unit,
   logger: RollbarLogger
 ) extends StreamUsage {
@@ -24,7 +26,7 @@ case class KinesisConsumer (
 
   private[this] val worker = new Worker.Builder()
     .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, logger))
-    .config(config.toKclConfig)
+    .config(config.toKclConfig(creds))
     .kinesisClient(config.kinesisClient)
     .build()
 
