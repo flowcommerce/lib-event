@@ -122,6 +122,8 @@ class DefaultQueue @Inject() (
       maxRecords = config.optionalInt(s"$sn.maxRecords"),
       idleMillisBetweenCalls = config.optionalLong(s"$sn.idleMillisBetweenCalls"),
       idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),
+      maxLeasesForWorker = config.optionalInt(s"$sn.maxLeasesForWorker"),
+      maxLeasesToStealAtOneTime = config.optionalInt(s"$sn.maxLeasesToStealAtOneTime"),
     )
   }
 }

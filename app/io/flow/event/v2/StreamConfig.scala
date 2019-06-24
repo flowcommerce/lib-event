@@ -18,6 +18,8 @@ trait StreamConfig {
   def maxRecords: Option[Int]
   def idleMillisBetweenCalls: Option[Long]
   def idleTimeBetweenReadsInMillis: Option[Long]
+  def maxLeasesForWorker: Option[Int]
+  def maxLeasesToStealAtOneTime: Option[Int]
   def awsCredentialsProvider: AWSCredentialsProvider
   def eventClass: Type
   def workerId: String
@@ -41,6 +43,8 @@ case class DefaultStreamConfig(
   maxRecords: Option[Int],   // number of records in each fetch
   idleMillisBetweenCalls: Option[Long],
   idleTimeBetweenReadsInMillis: Option[Long],
+  maxLeasesForWorker: Option[Int],
+  maxLeasesToStealAtOneTime: Option[Int],
   eventClass: Type
 ) extends StreamConfig {
 
@@ -71,6 +75,8 @@ case class DefaultStreamConfig(
       .withIdleMillisBetweenCalls(idleMillisBetweenCalls.getOrElse(1500L))
       .withIdleTimeBetweenReadsInMillis(idleTimeBetweenReadsInMillis.getOrElse(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS))
       .withMaxRecords(maxRecords.getOrElse(1000))
+      .withMaxLeasesForWorker(maxLeasesForWorker.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_FOR_WORKER))
+      .withMaxLeasesToStealAtOneTime(maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
       .withMetricsLevel(MetricsLevel.NONE)
       .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
   }
