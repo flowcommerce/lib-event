@@ -21,6 +21,8 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxRecords", "1234")
       config.set("development_workstation.lib.event.test.v0.test_event.json.idleMillisBetweenCalls", "5678")
       config.set("development_workstation.lib.event.test.v0.test_event.json.idleTimeBetweenReadsMs", "4321")
+      config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesForWorker", "8765")
+      config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesToStealAtOneTime", "9012")
       val creds = new AWSCreds(config)
       val rollbar = RollbarLogger.SimpleLogger
 
@@ -29,6 +31,8 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
 
       kclConfig.getMaxRecords mustBe 1234
       kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+      kclConfig.getMaxLeasesForWorker mustBe 8765
+      kclConfig.getMaxLeasesToStealAtOneTime mustBe 9012
 
       val rff = kclConfig.getRecordsFetcherFactory
       rff mustBe a[SimpleRecordsFetcherFactory]
