@@ -95,6 +95,7 @@ class DefaultQueue @Inject() (
     consumers.add(
       KinesisConsumer(
         streamConfig[T],
+        creds,
         f,
         logger
       )
