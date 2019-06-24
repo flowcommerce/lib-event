@@ -1,5 +1,8 @@
 package io.flow.event.v2
 
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
+import io.flow.lib.event.test.v0.models.TestEvent
+import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
@@ -12,6 +15,29 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     new GuiceApplicationBuilder()
       .bindings(new ConfigModule)
       .build()
+
+  "Passes maxRecords and idleTimeBetweenReadsMs config values to KCL Config" in {
+    withConfig { config =>
+      config.set("development_workstation.lib.event.test.v0.test_event.json.maxRecords", "1234")
+      config.set("development_workstation.lib.event.test.v0.test_event.json.idleMillisBetweenCalls", "5678")
+      config.set("development_workstation.lib.event.test.v0.test_event.json.idleTimeBetweenReadsMs", "4321")
+      val creds = new AWSCreds(config)
+      val rollbar = RollbarLogger.SimpleLogger
+
+      val queue = new DefaultQueue(config, creds, rollbar)
+      val kclConfig = queue.streamConfig[TestEvent].toKclConfig
+
+      kclConfig.getMaxRecords mustBe 1234
+      kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+
+      val rff = kclConfig.getRecordsFetcherFactory
+      rff mustBe a[SimpleRecordsFetcherFactory]
+      val field = classOf[SimpleRecordsFetcherFactory].getDeclaredField("idleMillisBetweenCalls")
+      field.setAccessible(true)
+      field.get(rff) mustBe 5678
+
+    }
+  }
 
   /* Disable in travis - dont' want to share credentials there
   "can publish and consume an event" in {

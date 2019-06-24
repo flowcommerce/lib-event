@@ -112,12 +112,16 @@ class DefaultQueue @Inject() (
 
   override def shutdown(): Unit = shutdownConsumers()
 
-  private[this] def streamConfig[T: TypeTag] = {
+  protected[v2] def streamConfig[T: TypeTag] = {
+    val sn = streamName[T]
     DefaultStreamConfig(
       creds,
       appName = appName,
-      streamName = streamName[T],
-      eventClass = typeOf[T]
+      streamName = sn,
+      eventClass = typeOf[T],
+      maxRecords = config.optionalInt(s"$sn.maxRecords"),
+      idleMillisBetweenCalls = config.optionalLong(s"$sn.idleMillisBetweenCalls"),
+      idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),
     )
   }
 }
