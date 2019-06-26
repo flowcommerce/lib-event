@@ -4,6 +4,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
+import io.flow.play.metrics.MetricsSystem
 import io.flow.play.util.Config
 import io.flow.util.StreamNames
 import javax.inject.Inject
@@ -65,7 +66,8 @@ trait Producer[T] {
 class DefaultQueue @Inject() (
   config: Config,
   creds: AWSCreds,
-  logger: RollbarLogger
+  metrics: MetricsSystem,
+  logger: RollbarLogger,
 ) extends Queue with StreamUsage {
 
   import scala.collection.JavaConverters._
@@ -97,7 +99,8 @@ class DefaultQueue @Inject() (
         streamConfig[T],
         creds,
         f,
-        logger
+        metrics,
+        logger,
       )
     )
     ()
