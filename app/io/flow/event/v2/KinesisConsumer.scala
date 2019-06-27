@@ -76,8 +76,8 @@ case class KinesisRecordProcessor[T](
 
   import KinesisRecordProcessor._
 
-  val streamLagMetric = metrics.registry.histogram(s"${config.streamName}.consumer.${config.appName}.${config.workerId}.lagMillis")
-  val numRecordsMetric = metrics.registry.histogram(s"${config.streamName}.consumer.${config.appName}.${config.workerId}.numRecords")
+  val streamLagMetric = metrics.registry.histogram(s"${config.streamName}.consumer.lagMillis")
+  val numRecordsMetric = metrics.registry.histogram(s"${config.streamName}.consumer.numRecords")
 
   private val logger_ = logger
     .withKeyValue("class", this.getClass.getName)
