@@ -54,12 +54,4 @@ publishTo := {
   }
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-version := "0.4.82"
-=======
-version := "0.4.84"
->>>>>>> origin/master
-=======
 version := "0.4.87"
->>>>>>> origin/master
