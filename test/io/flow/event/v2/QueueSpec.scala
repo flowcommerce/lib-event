@@ -4,7 +4,6 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetc
 import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
-import io.flow.play.metrics.MockMetricsSystem
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
 import play.api.Application
@@ -27,7 +26,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
       val creds = new AWSCreds(config)
       val rollbar = RollbarLogger.SimpleLogger
 
-      val queue = new DefaultQueue(config, creds, new MockMetricsSystem(), rollbar)
+      val queue = new DefaultQueue(config, creds, rollbar)
       val kclConfig = queue.streamConfig[TestEvent].toKclConfig(creds)
 
       kclConfig.getMaxRecords mustBe 1234
