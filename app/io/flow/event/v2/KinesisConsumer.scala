@@ -1,6 +1,6 @@
 package io.flow.event.v2
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain
 import software.amazon.kinesis.exceptions.{InvalidStateException, KinesisClientLibRetryableException, ShutdownException}
@@ -54,7 +54,9 @@ case class KinesisConsumer (
   exec.execute(scheduler)
 
   def shutdown(): Unit = {
-    scheduler.shutdown()
+    Try(
+      scheduler.startGracefulShutdown().get(1, TimeUnit.SECONDS)
+    ).getOrElse(scheduler.shutdown())
     exec.shutdown()
   }
 
@@ -154,7 +156,7 @@ case class KinesisRecordProcessor[T](
 
   override def shutdownRequested(input: ShutdownRequestedInput): Unit = {
     logger_.withKeyValue("reason", "requested").info("Shutting down")
-    handleCheckpoint(input.checkpointer)
+    handleCheckpoint(input.checkpointer, inShutdown = true)
   }
 
   override def leaseLost(input: LeaseLostInput): Unit = {
@@ -163,9 +165,10 @@ case class KinesisRecordProcessor[T](
 
   override def shardEnded(input: ShardEndedInput): Unit = {
     logger_.withKeyValue("reason", "shardEnded").info("Shutting down")
+    handleCheckpoint(input.checkpointer, inShutdown = true)
   }
 
-  private def handleCheckpoint(checkpointer: RecordProcessorCheckpointer, retries: Int = 0): Unit = {
+  private def handleCheckpoint(checkpointer: RecordProcessorCheckpointer, retries: Int = 0, inShutdown: Boolean = false): Unit = {
 
     import KinesisRecordProcessor._
     try {
@@ -180,16 +183,31 @@ case class KinesisRecordProcessor[T](
       // ThrottlingException | KinesisClientLibDependencyException
       case e: KinesisClientLibRetryableException =>
         if (retries >= MaxRetries) {
-          logger_.error(s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts", e)
+          val msg = s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts"
+          if (inShutdown) {
+            logger_.info(msg, e)
+          } else {
+            logger_.error(msg, e)
+          }
         } else {
-          logger_.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries.", e)
+          val msg = s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries."
+          if (inShutdown) {
+            logger_.info(msg, e)
+          } else {
+            logger_.warn(msg, e)
+          }
           Thread.sleep(BackoffTimeInMillis)
           handleCheckpoint(checkpointer, retries + 1)
         }
 
       // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).
       case e: InvalidStateException =>
-        logger_.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
+        val msg = "[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library."
+        if (inShutdown) {
+          logger_.info(msg, e)
+        } else {
+          logger_.error(msg, e)
+        }
     }
   }
 }
