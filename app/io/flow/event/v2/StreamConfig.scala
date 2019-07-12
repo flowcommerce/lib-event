@@ -1,12 +1,15 @@
 package io.flow.event.v2
 
 import java.net.InetAddress
+import java.time.Duration
 import java.util.UUID
 
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 import io.flow.util.{FlowEnvironment, Naming}
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain
 import software.amazon.awssdk.core.client.config.{ClientAsyncConfiguration, ClientOverrideConfiguration}
+import software.amazon.awssdk.core.retry.RetryPolicy
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.kinesis.common.{ConfigsBuilder, InitialPositionInStream, InitialPositionInStreamExtended, KinesisClientUtil}
@@ -55,14 +58,29 @@ case class DefaultStreamConfig(
 ) extends StreamConfig {
 
   override def kinesisClient: KinesisAsyncClient = {
-    val clientConfig = ClientAsyncConfiguration.builder().build()
+    val httpClientBuilder = NettyNioAsyncHttpClient.builder()
+      .connectionTimeToLive(Duration.ofMillis(600000))
 
-    val clientBuilder = KinesisAsyncClient.builder().
-      credentialsProvider(awsCredentialsProvider.creds).asyncConfiguration(clientConfig)
+    val asyncConfig = ClientAsyncConfiguration.builder()
+        .build()
 
-    val clientOverrideConfig = ClientOverrideConfiguration.builder().build()
+    val clientBuilder = KinesisAsyncClient.builder()
+      .credentialsProvider(awsCredentialsProvider.creds)
+      .httpClientBuilder(httpClientBuilder)
+      .asyncConfiguration(asyncConfig)
 
-    KinesisClientUtil.adjustKinesisClientBuilder(clientBuilder).overrideConfiguration(clientOverrideConfig).build()
+
+    val retryPolicy = RetryPolicy.builder()
+      .numRetries(10)
+      .build()
+
+    val overrideConfig = ClientOverrideConfiguration.builder()
+      .retryPolicy(retryPolicy)
+      .build()
+
+    KinesisClientUtil.adjustKinesisClientBuilder(clientBuilder)
+      .overrideConfiguration(overrideConfig)
+      .build()
   }
 }
 
