@@ -56,7 +56,10 @@ case class KinesisConsumer (
   def shutdown(): Unit = {
     Try(
       scheduler.startGracefulShutdown().get(1, TimeUnit.SECONDS)
-    ).getOrElse(scheduler.shutdown())
+    ) match {
+      case Success(_) => ()
+      case Failure(_) => scheduler.shutdown()
+    }
     exec.shutdown()
   }
 
