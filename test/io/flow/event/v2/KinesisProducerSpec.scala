@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
-import com.amazonaws.services.kinesis.AmazonKinesis
-import com.amazonaws.services.kinesis.model.{PutRecordsRequest, PutRecordsResult}
+import java.util.concurrent.CompletableFuture
+
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
@@ -13,6 +13,8 @@ import org.scalatest.Inspectors
 import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import play.api.libs.json.Json
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+import software.amazon.awssdk.services.kinesis.model.{PutRecordsRequest, PutRecordsResponse}
 
 import scala.util.Random
 
@@ -39,10 +41,9 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
 
   "KinesisProducer should publish one in batch" in {
     val streamConfig = mock[StreamConfig]
-    val kinesisClient = mock[AmazonKinesis]
-    val mockPutResults = mock[PutRecordsResult]
-    when(mockPutResults.getFailedRecordCount).thenReturn(0)
-    when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
+    val kinesisClient = mock[KinesisAsyncClient]
+    val mockPutResults = PutRecordsResponse.builder().failedRecordCount(0).build()
+    when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(CompletableFuture.completedFuture(mockPutResults))
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
@@ -53,10 +54,10 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     val capture: ArgumentCaptor[PutRecordsRequest] = ArgumentCaptor.forClass(classOf[PutRecordsRequest])
     verify(kinesisClient).putRecords(capture.capture())
 
-    capture.getValue.getRecords must have size 1
-    val res = capture.getValue.getRecords.get(0)
+    capture.getValue.records must have size 1
+    val res = capture.getValue.records.get(0)
 
-    val data = new String(res.getData.array(), Utf8)
+    val data = new String(res.data.asByteArray(), Utf8)
     data must equal(Json.stringify(Json.toJson(event)))
   }
 
@@ -64,10 +65,9 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     // 500 events + 5MB limit + 500 events + 100 events
 
     val streamConfig = mock[StreamConfig]
-    val kinesisClient = mock[AmazonKinesis]
-    val mockPutResults = mock[PutRecordsResult]
-    when(mockPutResults.getFailedRecordCount).thenReturn(0)
-    when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
+    val kinesisClient = mock[KinesisAsyncClient]
+    val mockPutResults = PutRecordsResponse.builder().failedRecordCount(0).build()
+    when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(CompletableFuture.completedFuture(mockPutResults))
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
@@ -85,10 +85,10 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
     verify(kinesisClient, times(4)).putRecords(capture.capture())
 
     capture.getAllValues must have size 4
-    capture.getAllValues.get(0).getRecords must have size 500
-    capture.getAllValues.get(1).getRecords must have size 5
-    capture.getAllValues.get(2).getRecords must have size 500
-    capture.getAllValues.get(3).getRecords must have size 100
+    capture.getAllValues.get(0).records must have size 500
+    capture.getAllValues.get(1).records must have size 5
+    capture.getAllValues.get(2).records must have size 500
+    capture.getAllValues.get(3).records must have size 100
   }
 
 }

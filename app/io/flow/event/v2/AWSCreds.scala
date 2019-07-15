@@ -1,23 +1,22 @@
 package io.flow.event.v2
 
-import com.amazonaws.auth._
+import software.amazon.awssdk.auth.credentials._
 import io.flow.play.util.Config
 import javax.inject.Inject
 
-import scala.collection.JavaConverters._
+class AWSCreds @Inject() (config: Config) {
 
-class AWSCreds @Inject() (config: Config) extends AWSCredentialsProviderChain(
 
-  List(
+  val creds = AwsCredentialsProviderChain.of(
+    List(
+      for {
+        accessKey <- config.optionalString("aws.access.key")
+        secretKey <- config.optionalString("aws.secret.key")
+      } yield StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)),
 
-    for {
-      accessKey <- config.optionalString("aws.access.key")
-      secretKey <- config.optionalString("aws.secret.key")
-    } yield new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)),
+      // EC2 role
+      Some(DefaultCredentialsProvider.create())
 
-    // EC2 role
-    Some(DefaultAWSCredentialsProviderChain.getInstance())
-
-  ).flatten.asJava
-
-)
+    ).flatten.toArray: _*
+  )
+}
