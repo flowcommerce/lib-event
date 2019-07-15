@@ -55,3 +55,4 @@ publishTo := {
 }
 
 version := "0.4.87-kcl2-rc1"
+version := "1.0.0"
