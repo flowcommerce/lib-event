@@ -1,6 +1,7 @@
 .idea/
 target/
 logs/
+native/
 .ivy2
 *.swp
 *.swo
