@@ -121,7 +121,7 @@ case class KinesisRecordProcessor[T](
         buffer.get(bytes)
 
         Record.fromByteArray(
-          arrivalTimestamp = new DateTime(record.approximateArrivalTimestamp),
+          arrivalTimestamp = new DateTime(record.approximateArrivalTimestamp.toEpochMilli),
           value = bytes
         )
       }
