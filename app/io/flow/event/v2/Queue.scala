@@ -97,7 +97,7 @@ class DefaultQueue @Inject() (
     consumers.add(
       KinesisConsumer(
         streamConfig[T],
-        creds.creds,
+        creds,
         f,
         metrics,
         logger,
@@ -122,12 +122,12 @@ class DefaultQueue @Inject() (
       creds,
       appName = appName,
       streamName = sn,
+      eventClass = typeOf[T],
       maxRecords = config.optionalInt(s"$sn.maxRecords"),
       idleMillisBetweenCalls = config.optionalLong(s"$sn.idleMillisBetweenCalls"),
       idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),
       maxLeasesForWorker = config.optionalInt(s"$sn.maxLeasesForWorker"),
       maxLeasesToStealAtOneTime = config.optionalInt(s"$sn.maxLeasesToStealAtOneTime"),
-      eventClass = typeOf[T]
     )
   }
 }
