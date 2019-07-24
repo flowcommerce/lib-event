@@ -1,17 +1,16 @@
 package io.flow.event.v2
 
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
 import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import io.flow.play.metrics.MockMetricsSystem
-import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
-import software.amazon.kinesis.processor.ShardRecordProcessorFactory
 
-class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with MockitoSugar with Helpers {
+class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()
@@ -29,14 +28,19 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with MockitoSugar with
       val rollbar = RollbarLogger.SimpleLogger
 
       val queue = new DefaultQueue(config, creds, new MockMetricsSystem(), rollbar)
-      val streamConfig = queue.streamConfig[TestEvent]
-      val consumerConfig = ConsumerConfig(streamConfig, creds.creds, mock[ShardRecordProcessorFactory])
+      val kclConfig = queue.streamConfig[TestEvent].toKclConfig(creds)
 
-      consumerConfig.pollingConfig.maxRecords mustBe 1234
-      consumerConfig.pollingConfig.idleTimeBetweenReadsInMillis mustBe 4321
-      consumerConfig.leaseManagementConfig.maxLeasesForWorker mustBe 8765
-      consumerConfig.leaseManagementConfig.maxLeasesToStealAtOneTime mustBe 9012
-      consumerConfig.recordsFetcherFactory.idleMillisBetweenCalls mustBe 5678
+      kclConfig.getMaxRecords mustBe 1234
+      kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
+      kclConfig.getMaxLeasesForWorker mustBe 8765
+      kclConfig.getMaxLeasesToStealAtOneTime mustBe 9012
+
+      val rff = kclConfig.getRecordsFetcherFactory
+      rff mustBe a[SimpleRecordsFetcherFactory]
+      val field = classOf[SimpleRecordsFetcherFactory].getDeclaredField("idleMillisBetweenCalls")
+      field.setAccessible(true)
+      field.get(rff) mustBe 5678
+
     }
   }
 

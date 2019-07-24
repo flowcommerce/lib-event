@@ -1,13 +1,13 @@
 package io.flow.event.v2
 
+import java.nio.ByteBuffer
 import java.util
 
+import com.amazonaws.services.kinesis.model._
 import com.github.ghik.silencer.silent
 import io.flow.event.Util
 import io.flow.log.RollbarLogger
 import play.api.libs.json.{Json, Writes}
-import software.amazon.awssdk.core.SdkBytes
-import software.amazon.awssdk.services.kinesis.model.{CreateStreamRequest, IncreaseStreamRetentionPeriodRequest, KmsThrottlingException, ProvisionedThroughputExceededException, PutRecordsRequest, PutRecordsRequestEntry, PutRecordsResponse, ResourceInUseException}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -55,7 +55,7 @@ case class KinesisProducer[T](
         val event = serializer.writes(evt)
         val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
         val data = Json.stringify(event).getBytes("UTF-8")
-        val record = PutRecordsRequestEntry.builder().partitionKey(partitionKey).data(SdkBytes.fromByteArray(data)).build
+        val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
 
         markProducedEvent(config.streamName, event)
 
@@ -80,14 +80,14 @@ case class KinesisProducer[T](
   private def publishBatchRetries(entries: util.List[PutRecordsRequestEntry], attempts: Int): Unit = {
     Try(doPublishBatch(entries)) match {
       case Success(response) =>
-        val failedRecordCount = response.failedRecordCount
+        val failedRecordCount = response.getFailedRecordCount
         if (failedRecordCount > 0) {
           if (attempts > MaxRetries) {
             // log errors
             val errorMessage = s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published"
             logger_.warn(errorMessage)
-            response.records.asScala.foreach { resultEntry =>
-              if (Option(resultEntry.errorCode).isDefined || Option(resultEntry.errorMessage).isDefined)
+            response.getRecords.asScala.foreach { resultEntry =>
+              if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
                 logger_.info(s"[FlowKinesisError] $resultEntry")
             }
 
@@ -97,14 +97,14 @@ case class KinesisProducer[T](
               s"Retrying $attempts/$MaxRetries ...")
 
             val toRetries =
-              entries.asScala.zip(response.records.asScala)
-                .collect { case (entry, res) if Option(res.errorCode).isDefined || Option(res.errorMessage).isDefined => entry }
+              entries.asScala.zip(response.getRecords.asScala)
+                .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
             waitBeforeRetry()
             publishBatchRetries(toRetries.asJava, attempts + 1)
           }
         }
 
-      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KmsThrottlingException)) if attempts <= MaxRetries =>
+      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
         logger_.info(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
         waitBeforeRetry()
         publishBatchRetries(entries, attempts + 1)
@@ -116,13 +116,13 @@ case class KinesisProducer[T](
   // uniform 1s to 5s
   private def waitBeforeRetry(): Unit = Thread.sleep(1000L + Random.nextInt(4000).toLong)
 
-  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResponse = {
-    val putRecordsRequest = PutRecordsRequest.builder().streamName(config.streamName).records(entries).build()
-    kinesisClient.putRecords(putRecordsRequest).get()
+  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
+    val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
+    kinesisClient.putRecords(putRecordsRequest)
   }
 
   override def shutdown(): Unit = {
-    kinesisClient.close()
+    kinesisClient.shutdown()
   }
 
   /**
@@ -131,19 +131,17 @@ case class KinesisProducer[T](
   @silent private[this] def setup(): Unit = {
     Try {
       kinesisClient.createStream(
-        CreateStreamRequest.builder()
-          .streamName(config.streamName)
-          .shardCount(numberShards)
-          .build()
+        new CreateStreamRequest()
+          .withStreamName(config.streamName)
+          .withShardCount(numberShards)
       )
     }.map { _ =>
       // set retention to three days to recover from Flow service outages lasting longer than the default 24 hours
       // e.g. when a service comes back online it can recover the last 3 days of events from the Kinesis stream
       kinesisClient.increaseStreamRetentionPeriod(
-        IncreaseStreamRetentionPeriodRequest.builder()
-          .streamName(config.streamName)
-          .retentionPeriodHours(72)
-          .build()
+        new IncreaseStreamRetentionPeriodRequest()
+          .withStreamName(config.streamName)
+          .withRetentionPeriodHours(72)
       )
     }.recover {
       case NonFatal(ex) => {

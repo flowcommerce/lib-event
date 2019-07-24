@@ -1,17 +1,17 @@
 package io.flow.event.v2
 
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.Executors
 
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain
-import software.amazon.kinesis.exceptions.{InvalidStateException, KinesisClientLibRetryableException, ShutdownException}
-import software.amazon.kinesis.lifecycle.events.{InitializationInput, LeaseLostInput, ProcessRecordsInput, ShardEndedInput, ShutdownRequestedInput}
-import software.amazon.kinesis.processor.RecordProcessorCheckpointer
+import com.amazonaws.auth.AWSCredentialsProviderChain
+import com.amazonaws.services.kinesis.clientlibrary.exceptions._
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ShutdownReason, Worker}
+import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
 import org.joda.time.DateTime
-import software.amazon.kinesis.coordinator.Scheduler
-import software.amazon.kinesis.processor.{ShardRecordProcessor, ShardRecordProcessorFactory}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
@@ -20,28 +20,18 @@ import scala.util.control.NonFatal
 
 case class KinesisConsumer (
   config: StreamConfig,
-  creds: AwsCredentialsProviderChain,
+  creds: AWSCredentialsProviderChain,
   f: Seq[Record] => Unit,
   metrics: MetricsSystem,
   logger: RollbarLogger,
 ) extends StreamUsage {
 
 
-  private[this] val scheduler = {
-    val recordProcessorFactory = KinesisRecordProcessorFactory(config, f, metrics, logger)
-
-    val consumerConfig = ConsumerConfig(config, creds, recordProcessorFactory)
-
-    new Scheduler(
-      consumerConfig.checkpointConfig,
-      consumerConfig.coordinatorConfig,
-      consumerConfig.leaseManagementConfig,
-      consumerConfig.lifecycleConfig,
-      consumerConfig.metricsConfig,
-      consumerConfig.processorConfig,
-      consumerConfig.retrievalConfig
-    )
-  }
+  private[this] val worker = new Worker.Builder()
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
+    .config(config.toKclConfig(creds))
+    .kinesisClient(config.kinesisClient)
+    .build()
 
   private[this] val exec = Executors.newSingleThreadExecutor()
 
@@ -51,15 +41,9 @@ case class KinesisConsumer (
     .withKeyValue("worker_id", config.workerId)
     .info("Started")
 
-  exec.execute(scheduler)
+  exec.execute(worker)
 
   def shutdown(): Unit = {
-    Try(
-      scheduler.startGracefulShutdown().get(1, TimeUnit.SECONDS)
-    ) match {
-      case Success(_) => ()
-      case Failure(_) => scheduler.shutdown()
-    }
     exec.shutdown()
   }
 
@@ -70,9 +54,9 @@ case class KinesisRecordProcessorFactory(
   f: Seq[Record] => Unit,
   metrics: MetricsSystem,
   logger: RollbarLogger,
-) extends ShardRecordProcessorFactory {
+) extends IRecordProcessorFactory {
 
-  override def shardRecordProcessor(): ShardRecordProcessor = {
+  override def createProcessor(): IRecordProcessor = {
     KinesisRecordProcessor(config, f, metrics, logger)
   }
 
@@ -89,7 +73,7 @@ case class KinesisRecordProcessor[T](
   f: Seq[Record] => Unit,
   metrics: MetricsSystem,
   logger: RollbarLogger,
-) extends ShardRecordProcessor {
+) extends IRecordProcessor {
 
   import KinesisRecordProcessor._
 
@@ -103,35 +87,35 @@ case class KinesisRecordProcessor[T](
 
   override def initialize(input: InitializationInput): Unit =
     logger_
-      .withKeyValue("shard_id", input.shardId)
+      .withKeyValue("shard_id", input.getShardId)
       .info("Initializing")
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
     logger_.info("Processing records")
 
-    streamLagMetric.update(input.millisBehindLatest)
-    numRecordsMetric.update(input.records.size)
+    streamLagMetric.update(input.getMillisBehindLatest)
+    numRecordsMetric.update(input.getRecords.size)
 
-    val kinesisRecords = input.records.asScala
+    val kinesisRecords = input.getRecords.asScala
 
     if (kinesisRecords.nonEmpty) {
       val flowRecords = kinesisRecords.map { record =>
-        val buffer = record.data
+        val buffer = record.getData
         val bytes = Array.fill[Byte](buffer.remaining)(0)
         buffer.get(bytes)
 
         Record.fromByteArray(
-          arrivalTimestamp = new DateTime(record.approximateArrivalTimestamp.toEpochMilli),
+          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
           value = bytes
         )
       }
-      val sequenceNumbers = kinesisRecords.map(_.sequenceNumber)
+      val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
       executeRetry(flowRecords, sequenceNumbers)
     }
 
     kinesisRecords.lastOption.foreach { record =>
-      logger_.withKeyValue("checkpoint", record.sequenceNumber).info("Checkpoint")
-      handleCheckpoint(input.checkpointer)
+      logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
+      handleCheckpoint(input.getCheckpointer)
     }
   }
 
@@ -157,21 +141,14 @@ case class KinesisRecordProcessor[T](
     }
   }
 
-  override def shutdownRequested(input: ShutdownRequestedInput): Unit = {
-    logger_.withKeyValue("reason", "requested").info("Shutting down")
-    handleCheckpoint(input.checkpointer, inShutdown = true)
+  override def shutdown(input: ShutdownInput): Unit = {
+    logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
+    if (input.getShutdownReason == ShutdownReason.TERMINATE) {
+      handleCheckpoint(input.getCheckpointer)
+    }
   }
 
-  override def leaseLost(input: LeaseLostInput): Unit = {
-    logger_.withKeyValue("reason", "leaseLost").info("Shutting down")
-  }
-
-  override def shardEnded(input: ShardEndedInput): Unit = {
-    logger_.withKeyValue("reason", "shardEnded").info("Shutting down")
-    handleCheckpoint(input.checkpointer, inShutdown = true)
-  }
-
-  private def handleCheckpoint(checkpointer: RecordProcessorCheckpointer, retries: Int = 0, inShutdown: Boolean = false): Unit = {
+  private def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, retries: Int = 0): Unit = {
 
     import KinesisRecordProcessor._
     try {
@@ -186,31 +163,17 @@ case class KinesisRecordProcessor[T](
       // ThrottlingException | KinesisClientLibDependencyException
       case e: KinesisClientLibRetryableException =>
         if (retries >= MaxRetries) {
-          val msg = s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts"
-          if (inShutdown) {
-            logger_.info(msg, e)
-          } else {
-            logger_.error(msg, e)
-          }
+          logger_.error(s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts", e)
         } else {
-          val msg = s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries."
-          if (inShutdown) {
-            logger_.info(msg, e)
-          } else {
-            logger_.warn(msg, e)
-          }
+          logger_.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries.", e)
           Thread.sleep(BackoffTimeInMillis)
           handleCheckpoint(checkpointer, retries + 1)
         }
 
       // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).
       case e: InvalidStateException =>
-        val msg = "[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library."
-        if (inShutdown) {
-          logger_.info(msg, e)
-        } else {
-          logger_.error(msg, e)
-        }
+        logger_.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
     }
   }
+
 }
