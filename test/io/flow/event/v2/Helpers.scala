@@ -44,18 +44,20 @@ trait Helpers {
     eventId
   }
 
-  def consume[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 35): Record = {
+  def consume[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Record = {
     consumeUntil[T](q, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
       sys.error(s"Failed to find eventId[$eventId]")
     }
   }
 
-  def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 35): Seq[Record] = {
+  def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Seq[Record] = {
     val all = scala.collection.mutable.ListBuffer[Record]()
-    // println(s"  --> consumeUntil for eventId[$eventId]")
-    q.consume[T] { rec =>
-      // println(s"  --> record eventId[${rec.eventId}]")
-      all ++= rec
+    println(s"  --> consumeUntil for eventId[$eventId]")
+    q.consume[T] { recs =>
+      recs.foreach { rec =>
+        println(s"  --> record eventId[${rec.eventId}]")
+      }
+      all ++= recs
     }
 
     Await.result(

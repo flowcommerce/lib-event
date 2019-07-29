@@ -26,7 +26,6 @@ case class KinesisConsumer (
   logger: RollbarLogger,
 ) extends StreamUsage {
 
-
   private[this] val worker = new Worker.Builder()
     .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
     .config(config.toKclConfig(creds))
