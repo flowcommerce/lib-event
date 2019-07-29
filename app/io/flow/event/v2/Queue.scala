@@ -66,6 +66,7 @@ trait Producer[T] {
 class DefaultQueue @Inject() (
   config: Config,
   creds: AWSCreds,
+  endpoints: AWSEndpoints,
   metrics: MetricsSystem,
   logger: RollbarLogger,
 ) extends Queue with StreamUsage {
@@ -119,7 +120,7 @@ class DefaultQueue @Inject() (
   protected[v2] def streamConfig[T: TypeTag] = {
     val sn = streamName[T]
     DefaultStreamConfig(
-      creds,
+      awsCredentialsProvider = creds,
       appName = appName,
       streamName = sn,
       eventClass = typeOf[T],
@@ -128,6 +129,7 @@ class DefaultQueue @Inject() (
       idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),
       maxLeasesForWorker = config.optionalInt(s"$sn.maxLeasesForWorker"),
       maxLeasesToStealAtOneTime = config.optionalInt(s"$sn.maxLeasesToStealAtOneTime"),
+      endpoints = endpoints,
     )
   }
 }

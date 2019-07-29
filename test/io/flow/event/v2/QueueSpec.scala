@@ -1,7 +1,10 @@
 package io.flow.event.v2
 
+import java.util.UUID
+
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
-import io.flow.lib.event.test.v0.models.TestEvent
+import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
+import io.flow.lib.event.test.v0.models.json._
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import io.flow.play.metrics.MockMetricsSystem
@@ -26,8 +29,9 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesToStealAtOneTime", "9012")
       val creds = new AWSCreds(config)
       val rollbar = RollbarLogger.SimpleLogger
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
 
-      val queue = new DefaultQueue(config, creds, new MockMetricsSystem(), rollbar)
+      val queue = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
       val kclConfig = queue.streamConfig[TestEvent].toKclConfig(creds)
 
       kclConfig.getMaxRecords mustBe 1234
@@ -44,12 +48,15 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
     }
   }
 
-  /* Disable in travis - dont' want to share credentials there
   "can publish and consume an event" in {
     withConfig { config =>
       val testObject = TestObject(UUID.randomUUID().toString)
 
-      val q = new DefaultQueue(config)
+      val creds = new AWSCreds(config)
+      val rollbar = RollbarLogger.SimpleLogger
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
+
+      val q = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
       val producer = q.producer[TestEvent]()
 
       val eventId = publishTestObject(producer, testObject)
@@ -61,7 +68,6 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
       q.shutdown
     }
   }
-   */
 
   /*
 TODO: Figure out how to run this test - the worker is not shutting down in time to test new stream

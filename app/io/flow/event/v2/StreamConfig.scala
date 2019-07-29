@@ -5,6 +5,7 @@ import java.util.UUID
 
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentialsProviderChain
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
@@ -21,6 +22,7 @@ trait StreamConfig {
   def maxLeasesForWorker: Option[Int]
   def maxLeasesToStealAtOneTime: Option[Int]
   def eventClass: Type
+  def endpoints: AWSEndpoints
 
   def kinesisClient: AmazonKinesis
 
@@ -47,11 +49,15 @@ case class DefaultStreamConfig(
   idleTimeBetweenReadsInMillis: Option[Long],
   maxLeasesForWorker: Option[Int],
   maxLeasesToStealAtOneTime: Option[Int],
-  eventClass: Type
+  eventClass: Type,
+  endpoints: AWSEndpoints,
 ) extends StreamConfig {
 
   override def kinesisClient: AmazonKinesis = {
     AmazonKinesisClientBuilder.standard().
+      withEndpointConfiguration(
+        new EndpointConfiguration(endpoints.kinesis, endpoints.region)
+      ).
       withCredentials(awsCredentialsProvider).
       withClientConfiguration(
         new ClientConfiguration()
@@ -62,6 +68,7 @@ case class DefaultStreamConfig(
       ).
       build()
   }
+
 }
 
 object StreamConfig {
@@ -80,6 +87,8 @@ object StreamConfig {
         creds,
         config.workerId
       ).withTableName(config.dynamoTableName)
+        .withKinesisEndpoint(config.endpoints.kinesis)
+        .withDynamoDBEndpoint(config.endpoints.dynamodb)
         .withInitialLeaseTableReadCapacity(dynamoCapacity)
         .withInitialLeaseTableWriteCapacity(dynamoCapacity)
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
