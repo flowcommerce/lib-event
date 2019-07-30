@@ -63,7 +63,7 @@ case class DefaultStreamConfig(
   override def kinesisClient: KinesisAsyncClient = {
     val httpClient = NettyNioAsyncHttpClient.builder()
       .connectionTimeToLive(Duration.ofMillis(600000))
-      .protocol(Protocol.HTTP1_1)
+      .protocol(endpoints.protocol)
       .maxConcurrency(Integer.MAX_VALUE)
       .build
 

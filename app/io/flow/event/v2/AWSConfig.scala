@@ -6,6 +6,7 @@ import io.flow.play.util.Config
 import javax.inject.Inject
 import play.api.{Environment, Mode}
 import software.amazon.awssdk.auth.credentials._
+import software.amazon.awssdk.http.Protocol
 
 class AWSCreds @Inject() (config: Config) {
 
@@ -38,5 +39,10 @@ class AWSEndpoints @Inject() (environment: Environment) {
   val dynamodb = environment.mode match {
     case Mode.Test => URI.create("http://localhost:4569") // localstack
     case _ => URI.create(s"https://dynamodb.$region.amazonaws.com")
+  }
+
+  val protocol = environment.mode match {
+    case Mode.Test => Protocol.HTTP1_1
+    case _ => Protocol.HTTP2
   }
 }
