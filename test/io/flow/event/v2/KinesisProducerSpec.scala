@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
 import com.amazonaws.services.kinesis.AmazonKinesis
-import com.amazonaws.services.kinesis.model.{PutRecordsRequest, PutRecordsResult}
+import com.amazonaws.services.kinesis.model.{DescribeStreamResult, PutRecordsRequest, PutRecordsResult, StreamDescription}
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
@@ -40,9 +40,16 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
   "KinesisProducer should publish one in batch" in {
     val streamConfig = mock[StreamConfig]
     val kinesisClient = mock[AmazonKinesis]
+
     val mockPutResults = mock[PutRecordsResult]
     when(mockPutResults.getFailedRecordCount).thenReturn(0)
     when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
+
+    val mockDescribeStream = mock[DescribeStreamResult]
+    when(mockDescribeStream.getStreamDescription).thenReturn(new StreamDescription().withStreamStatus("ACTIVE"))
+    when(kinesisClient.describeStream(any[String]())).thenReturn(mockDescribeStream)
+
+    when(streamConfig.streamName).thenReturn("lib-event-test-stream")
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
@@ -65,9 +72,16 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with Inspectors {
 
     val streamConfig = mock[StreamConfig]
     val kinesisClient = mock[AmazonKinesis]
+
     val mockPutResults = mock[PutRecordsResult]
     when(mockPutResults.getFailedRecordCount).thenReturn(0)
     when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
+
+    val mockDescribeStream = mock[DescribeStreamResult]
+    when(mockDescribeStream.getStreamDescription).thenReturn(new StreamDescription().withStreamStatus("ACTIVE"))
+    when(kinesisClient.describeStream(any[String]())).thenReturn(mockDescribeStream)
+
+    when(streamConfig.streamName).thenReturn("lib-event-test-stream")
     when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
     val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
