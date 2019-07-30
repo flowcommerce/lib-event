@@ -1,11 +1,11 @@
 package io.flow.event.v2
 
-import com.amazonaws.services.kinesis.AmazonKinesis
-import com.amazonaws.services.kinesis.model.{DescribeStreamResult, GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, PutRecordsRequest, PutRecordsResult, ShardIteratorType, StreamDescription}
-import io.flow.event.Record
+import java.util.concurrent.CompletableFuture
+
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
+import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import org.joda.time.DateTime
@@ -19,6 +19,8 @@ import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
 import play.api.libs.json.Json
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+import software.amazon.awssdk.services.kinesis.model.{DescribeStreamRequest, DescribeStreamResponse, GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, PutRecordsRequest, PutRecordsResponse, ShardIteratorType, StreamDescription}
 
 import scala.collection.JavaConverters._
 import scala.util.Random
@@ -52,15 +54,15 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
   "mock KinesisProducer" should {
     "publish one in batch" in {
       val streamConfig = mock[StreamConfig]
-      val kinesisClient = mock[AmazonKinesis]
+      val kinesisClient = mock[KinesisAsyncClient]
 
-      val mockPutResults = mock[PutRecordsResult]
-      when(mockPutResults.getFailedRecordCount).thenReturn(0)
-      when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
+      val mockPutResults = PutRecordsResponse.builder().failedRecordCount(0).build()
+      when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(CompletableFuture.completedFuture(mockPutResults))
 
-      val mockDescribeStream = mock[DescribeStreamResult]
-      when(mockDescribeStream.getStreamDescription).thenReturn(new StreamDescription().withStreamStatus("ACTIVE"))
-      when(kinesisClient.describeStream(any[String]())).thenReturn(mockDescribeStream)
+      val mockDescribeStream = DescribeStreamResponse.builder().streamDescription(
+        StreamDescription.builder().streamStatus("ACTIVE").build()
+      ).build()
+      when(kinesisClient.describeStream(any[DescribeStreamRequest]())).thenReturn(CompletableFuture.completedFuture(mockDescribeStream))
 
       when(streamConfig.streamName).thenReturn("lib-event-test-stream")
       when(streamConfig.kinesisClient).thenReturn(kinesisClient)
@@ -73,10 +75,10 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
       val capture: ArgumentCaptor[PutRecordsRequest] = ArgumentCaptor.forClass(classOf[PutRecordsRequest])
       verify(kinesisClient).putRecords(capture.capture())
 
-      capture.getValue.getRecords must have size 1
-      val res = capture.getValue.getRecords.get(0)
+      capture.getValue.records must have size 1
+      val res = capture.getValue.records.get(0)
 
-      val data = new String(res.getData.array(), Utf8)
+      val data = new String(res.data.asByteArray(), Utf8)
       data must equal(Json.stringify(Json.toJson(event)))
     }
 
@@ -84,15 +86,15 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
       // 500 events + 5MB limit + 500 events + 100 events
 
       val streamConfig = mock[StreamConfig]
-      val kinesisClient = mock[AmazonKinesis]
+      val kinesisClient = mock[KinesisAsyncClient]
 
-      val mockPutResults = mock[PutRecordsResult]
-      when(mockPutResults.getFailedRecordCount).thenReturn(0)
-      when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(mockPutResults)
+      val mockPutResults = PutRecordsResponse.builder().failedRecordCount(0).build()
+      when(kinesisClient.putRecords(any[PutRecordsRequest]())).thenReturn(CompletableFuture.completedFuture(mockPutResults))
 
-      val mockDescribeStream = mock[DescribeStreamResult]
-      when(mockDescribeStream.getStreamDescription).thenReturn(new StreamDescription().withStreamStatus("ACTIVE"))
-      when(kinesisClient.describeStream(any[String]())).thenReturn(mockDescribeStream)
+      val mockDescribeStream = DescribeStreamResponse.builder().streamDescription(
+        StreamDescription.builder().streamStatus("ACTIVE").build()
+      ).build()
+      when(kinesisClient.describeStream(any[DescribeStreamRequest]())).thenReturn(CompletableFuture.completedFuture(mockDescribeStream))
 
       when(streamConfig.streamName).thenReturn("lib-event-test-stream")
       when(streamConfig.kinesisClient).thenReturn(kinesisClient)
@@ -112,10 +114,10 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
       verify(kinesisClient, times(4)).putRecords(capture.capture())
 
       capture.getAllValues must have size 4
-      capture.getAllValues.get(0).getRecords must have size 500
-      capture.getAllValues.get(1).getRecords must have size 5
-      capture.getAllValues.get(2).getRecords must have size 500
-      capture.getAllValues.get(3).getRecords must have size 100
+      capture.getAllValues.get(0).records must have size 500
+      capture.getAllValues.get(1).records must have size 5
+      capture.getAllValues.get(2).records must have size 500
+      capture.getAllValues.get(3).records must have size 100
     }
   }
 
@@ -133,27 +135,33 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
         producer.publishBatch(Seq(event))
 
         val shards = client.listShards(
-          new ListShardsRequest()
-            .withStreamName(streamName)
-        ).getShards.asScala
+          ListShardsRequest
+            .builder()
+            .streamName(streamName)
+            .build()
+        ).get().shards.asScala
 
         val iterator = client.getShardIterator(
-          new GetShardIteratorRequest()
-            .withStreamName(streamName)
-            .withShardId(shards.head.getShardId)
-            .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
-        ).getShardIterator
+          GetShardIteratorRequest
+            .builder()
+            .streamName(streamName)
+            .shardId(shards.head.shardId)
+            .shardIteratorType(ShardIteratorType.TRIM_HORIZON)
+            .build()
+        ).get().shardIterator
 
         val records = client.getRecords(
-          new GetRecordsRequest()
-            .withShardIterator(iterator)
-        ).getRecords.asScala
+          GetRecordsRequest
+            .builder()
+            .shardIterator(iterator)
+            .build()
+        ).get().records.asScala
 
         records.length must be (1)
 
         val record = Record.fromByteArray(
-          arrivalTimestamp = new DateTime(records.head.getApproximateArrivalTimestamp),
-          value = records.head.getData.array()
+          arrivalTimestamp = new DateTime(records.head.approximateArrivalTimestamp),
+          value = records.head.data.asByteArray()
         )
 
         record.eventId must be(event.eventId)

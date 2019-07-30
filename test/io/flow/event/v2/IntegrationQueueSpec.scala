@@ -1,12 +1,9 @@
 package io.flow.event.v2
 
 import java.util.UUID
-import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.LongAdder
+import java.util.concurrent.{Executors, TimeUnit}
 
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
@@ -16,6 +13,9 @@ import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.model.{DeleteTableRequest, DescribeTableRequest, TableStatus}
+import software.amazon.awssdk.services.kinesis.model._
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
@@ -38,20 +38,18 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       val creds = new AWSCreds(config)
       val rollbar = RollbarLogger.SimpleLogger
       val endpoints = app.injector.instanceOf[AWSEndpoints]
+      val metrics = new MockMetricsSystem()
 
-      val queue = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
-      val kclConfig = queue.streamConfig[TestEvent].toKclConfig(creds)
+      val queue = new DefaultQueue(config, creds, endpoints, metrics, rollbar)
+      val streamConfig = queue.streamConfig[TestEvent]
+      val recordProcessorFactory = new KinesisRecordProcessorFactory(streamConfig, _ => (), metrics, rollbar)
+      val consumerConfig = ConsumerConfig(streamConfig, creds.creds, recordProcessorFactory)
 
-      kclConfig.getMaxRecords mustBe 1234
-      kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
-      kclConfig.getMaxLeasesForWorker mustBe 8765
-      kclConfig.getMaxLeasesToStealAtOneTime mustBe 9012
-
-      val rff = kclConfig.getRecordsFetcherFactory
-      rff mustBe a[SimpleRecordsFetcherFactory]
-      val field = classOf[SimpleRecordsFetcherFactory].getDeclaredField("idleMillisBetweenCalls")
-      field.setAccessible(true)
-      field.get(rff) mustBe 5678
+      consumerConfig.pollingConfig.maxRecords mustBe 1234
+      consumerConfig.pollingConfig.idleTimeBetweenReadsInMillis mustBe 4321
+      consumerConfig.leaseManagementConfig.maxLeasesForWorker mustBe 8765
+      consumerConfig.leaseManagementConfig.maxLeasesToStealAtOneTime mustBe 9012
+      consumerConfig.recordsFetcherFactory.idleMillisBetweenCalls mustBe 5678
     }
   }
 
@@ -151,28 +149,32 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
 
   "shutdown consumers" in {
     def streamContents(q: DefaultQueue) = {
-      import com.amazonaws.services.kinesis.model._
-
       val client = q.streamConfig[TestEvent].kinesisClient
       val streamName = q.streamConfig[TestEvent].streamName
 
       Try {
         val shards = client.listShards(
-          new ListShardsRequest()
-            .withStreamName(streamName)
-        ).getShards.asScala
+          ListShardsRequest
+            .builder()
+            .streamName(streamName)
+            .build()
+        ).get().shards.asScala
 
         val iterator = client.getShardIterator(
-          new GetShardIteratorRequest()
-            .withStreamName(streamName)
-            .withShardId(shards.head.getShardId)
-            .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
-        ).getShardIterator
+          GetShardIteratorRequest
+            .builder()
+            .streamName(streamName)
+            .shardId(shards.head.shardId)
+            .shardIteratorType(ShardIteratorType.TRIM_HORIZON)
+            .build()
+        ).get().shardIterator
 
         val records = client.getRecords(
-          new GetRecordsRequest()
-            .withShardIterator(iterator)
-        ).getRecords.asScala
+          GetRecordsRequest
+            .builder()
+            .shardIterator(iterator)
+            .build()
+        ).get().records.asScala
 
         records.toList
       } match {
@@ -189,35 +191,57 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
 
       // delete stream
       try {
-        sc.kinesisClient.deleteStream(sc.streamName)
+        sc.kinesisClient.deleteStream(
+          DeleteStreamRequest.builder()
+            .streamName(sc.streamName)
+            .build()
+        ).get()
 
-        while (sc.kinesisClient.describeStream(sc.streamName).getStreamDescription.getStreamStatus == "DELETING") {
+        def status =
+          sc.kinesisClient.describeStream(
+            DescribeStreamRequest.builder().streamName(sc.streamName).build()
+          ).get().streamDescription()
+
+        while (status.streamStatus() == StreamStatus.DELETING) {
           println("waiting for stream to be deleted")
           Thread.sleep(1000)
         }
 
       } catch {
-        case _: com.amazonaws.services.kinesis.model.ResourceNotFoundException => // ok
+        case ex: Exception =>
+          ex.getCause match {
+            case _: software.amazon.awssdk.services.kinesis.model.ResourceNotFoundException => // ok
+          }
       }
 
       // delete dynamo table
       try {
-        val dynamo = AmazonDynamoDBClientBuilder.standard()
-          .withCredentials(sc.awsCredentialsProvider)
-          .withEndpointConfiguration(
-            new EndpointConfiguration(sc.endpoints.dynamodb.get, sc.endpoints.region)
-          )
-          .build
+        val dynamo = DynamoDbAsyncClient.builder()
+          .credentialsProvider(sc.awsCredentialsProvider.creds)
+          .endpointOverride(sc.endpoints.dynamodb.get)
+          .build()
 
-        dynamo.deleteTable(sc.dynamoTableName)
+        dynamo.deleteTable(
+          DeleteTableRequest.builder()
+            .tableName(sc.dynamoTableName)
+            .build()
+        ).get()
 
-        while (dynamo.describeTable(sc.dynamoTableName).getTable.getTableStatus == "DELETING") {
+        def status =
+          dynamo.describeTable(
+            DescribeTableRequest.builder().tableName(sc.dynamoTableName).build()
+          ).get().table
+
+        while (status.tableStatus() == TableStatus.DELETING) {
           println("waiting for table to be deleted")
           Thread.sleep(1000)
         }
       } catch {
-        case _: com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException => // ok
-        case _: com.amazonaws.AmazonServiceException => // delete this when https://github.com/localstack/localstack/pull/1461 is merged
+        case e: Exception =>
+          e.getCause match {
+            case _: software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException => // ok
+            case _: software.amazon.awssdk.services.dynamodb.model.DynamoDbException => // delete this when https://github.com/localstack/localstack/pull/1461 is merged
+          }
       }
 
       // let's make sure the stream is empty

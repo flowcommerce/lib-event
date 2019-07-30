@@ -1,15 +1,22 @@
 package io.flow.event.v2
 
 import java.net.InetAddress
+import java.time.Duration
 import java.util.UUID
 
-import com.amazonaws.ClientConfiguration
-import com.amazonaws.auth.AWSCredentialsProviderChain
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
-import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
-import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 import io.flow.util.{FlowEnvironment, Naming}
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain
+import software.amazon.awssdk.core.client.config.{ClientAsyncConfiguration, ClientOverrideConfiguration}
+import software.amazon.awssdk.core.retry.RetryPolicy
+import software.amazon.awssdk.http.Protocol
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
+import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.kinesis.common.{ConfigsBuilder, InitialPositionInStream, InitialPositionInStreamExtended}
+import software.amazon.kinesis.metrics.MetricsLevel
+import software.amazon.kinesis.processor.ShardRecordProcessorFactory
+import software.amazon.kinesis.retrieval.polling.{PollingConfig, SimpleRecordsFetcherFactory}
 
 import scala.reflect.runtime.universe._
 
@@ -24,7 +31,7 @@ trait StreamConfig {
   def eventClass: Type
   def endpoints: AWSEndpoints
 
-  def kinesisClient: AmazonKinesis
+  def kinesisClient: KinesisAsyncClient
 
   def dynamoTableName: String = {
     Naming.dynamoKinesisTableName(
@@ -53,63 +60,95 @@ case class DefaultStreamConfig(
   endpoints: AWSEndpoints,
 ) extends StreamConfig {
 
-  override lazy val kinesisClient: AmazonKinesis = {
-    val kclb = AmazonKinesisClientBuilder.standard().
-      withCredentials(awsCredentialsProvider).
-      withClientConfiguration(
-        new ClientConfiguration()
-          .withMaxErrorRetry(10)
-          .withMaxConsecutiveRetriesBeforeThrottling(1)
-          .withThrottledRetries(true)
-          .withConnectionTTL(600000)
-      )
+  override def kinesisClient: KinesisAsyncClient = {
+    val httpClientBuilder = NettyNioAsyncHttpClient.builder()
+      .connectionTimeToLive(Duration.ofMillis(600000))
+      .maxConcurrency(Integer.MAX_VALUE)
 
-    endpoints.kinesis.foreach { ep =>
-      kclb.setEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    endpoints.kinesis.foreach { _ => // if we have a custom endpoint, then don't use HTTP2
+      httpClientBuilder.protocol(Protocol.HTTP1_1)
     }
 
-    kclb.build
+    val httpClient = httpClientBuilder.build
+
+    val asyncConfig = ClientAsyncConfiguration.builder()
+      .build()
+
+    val clientBuilder = KinesisAsyncClient.builder()
+      .credentialsProvider(awsCredentialsProvider.creds)
+      .httpClient(httpClient)
+      .asyncConfiguration(asyncConfig)
+
+
+    val retryPolicy = RetryPolicy.builder()
+      .numRetries(10)
+      .build()
+
+    val overrideConfig = ClientOverrideConfiguration.builder()
+      .retryPolicy(retryPolicy)
+      .build()
+
+    clientBuilder.overrideConfiguration(overrideConfig)
+
+    endpoints.kinesis.foreach { ep =>
+      clientBuilder.endpointOverride(ep)
+    }
+
+    clientBuilder.build()
   }
 
 }
 
-object StreamConfig {
-  implicit class StreamConfigOps(val config: StreamConfig) extends AnyVal {
-    def toKclConfig(creds: AWSCredentialsProviderChain) = {
-      val dynamoCapacity = {
-        FlowEnvironment.Current match {
-          case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
-          case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
-        }
-      }
+case class ConsumerConfig(config: StreamConfig, creds: AwsCredentialsProviderChain, recordProcessorFactory: ShardRecordProcessorFactory) {
+  private val configsBuilder = {
+    val dynamoBuilder = DynamoDbAsyncClient.builder().credentialsProvider(creds)
+    config.endpoints.dynamodb.foreach(ep => dynamoBuilder.endpointOverride(ep))
+    val dynamoClient = dynamoBuilder.build
 
-      val kclConf = new KinesisClientLibConfiguration(
-        config.appName,
-        config.streamName,
-        creds,
-        config.workerId
-      ).withTableName(config.dynamoTableName)
-        .withInitialLeaseTableReadCapacity(dynamoCapacity)
-        .withInitialLeaseTableWriteCapacity(dynamoCapacity)
-        .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-        .withCleanupLeasesUponShardCompletion(true)
-        .withIdleMillisBetweenCalls(config.idleMillisBetweenCalls.getOrElse(1500L))
-        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.getOrElse(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS))
-        .withMaxRecords(config.maxRecords.getOrElse(1000))
-        .withMaxLeasesForWorker(config.maxLeasesForWorker.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_FOR_WORKER))
-        .withMaxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
-        .withMetricsLevel(MetricsLevel.NONE)
-        .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+    val cloudWatchClient = CloudWatchAsyncClient.builder.credentialsProvider(creds).build
 
-      config.endpoints.kinesis.foreach { ep =>
-        kclConf.withKinesisEndpoint(ep)
-      }
+    new ConfigsBuilder(config.streamName, config.appName, config.kinesisClient, dynamoClient, cloudWatchClient, config.workerId, recordProcessorFactory)
+      .tableName(config.dynamoTableName)
+  }
 
-      config.endpoints.dynamodb.foreach { ep =>
-        kclConf.withDynamoDBEndpoint(ep)
-      }
-
-      kclConf
+  private val dynamoCapacity = {
+    FlowEnvironment.Current match {
+      case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
+      case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
     }
   }
+
+  val checkpointConfig = configsBuilder.checkpointConfig()
+
+  val coordinatorConfig = configsBuilder.coordinatorConfig()
+    .shardConsumerDispatchPollIntervalMillis(config.idleTimeBetweenReadsInMillis.getOrElse(configsBuilder.coordinatorConfig().shardConsumerDispatchPollIntervalMillis))
+
+  val leaseManagementConfig = configsBuilder.leaseManagementConfig()
+    .initialLeaseTableReadCapacity(dynamoCapacity)
+    .initialLeaseTableWriteCapacity(dynamoCapacity)
+    .cleanupLeasesUponShardCompletion(true)
+    .maxLeasesForWorker(config.maxLeasesForWorker.getOrElse(configsBuilder.leaseManagementConfig.maxLeasesForWorker))
+    .maxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(configsBuilder.leaseManagementConfig.maxLeasesToStealAtOneTime))
+    .failoverTimeMillis(30000)
+
+  val lifecycleConfig = configsBuilder.lifecycleConfig()
+
+  val metricsConfig = configsBuilder.metricsConfig().metricsLevel(MetricsLevel.NONE)
+
+  val processorConfig = configsBuilder.processorConfig()
+
+  val recordsFetcherFactory = {
+    val f = new SimpleRecordsFetcherFactory()
+    config.idleMillisBetweenCalls.foreach(f.idleMillisBetweenCalls)
+    f
+  }
+
+  val pollingConfig = new PollingConfig(config.streamName, config.kinesisClient)
+    .maxRecords(config.maxRecords.getOrElse(1000))
+    .idleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.getOrElse(configsBuilder.coordinatorConfig().shardConsumerDispatchPollIntervalMillis))
+    .recordsFetcherFactory(recordsFetcherFactory)
+
+  val retrievalConfig = configsBuilder.retrievalConfig()
+    .retrievalSpecificConfig(pollingConfig)
+    .initialPositionInStreamExtended(InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.TRIM_HORIZON))
 }
