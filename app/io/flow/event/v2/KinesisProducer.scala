@@ -147,7 +147,7 @@ case class KinesisProducer[T](
       // createStream() immediately returns. we need to wait for the stream to go from CREATING -> ACTIVE.
       while (kinesisClient.describeStream(config.streamName).getStreamDescription.getStreamStatus == "CREATING") {
         logger_.withKeyValue("stream", config.streamName).info("waiting for stream to be created")
-        Thread.sleep(3000)
+        Thread.sleep(1000)
       }
     }.recover {
       case NonFatal(ex) => {
