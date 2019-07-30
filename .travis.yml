@@ -10,9 +10,7 @@ cache:
     - $HOME/.ivy2/cache
     - $HOME/.sbt/boot/
 env:
-  - AWS_ACCESS_KEY=x
-  - AWS_SECRET_KEY=x
-  - AWS_CBOR_DISABLE=true
+  - AWS_ACCESS_KEY=x AWS_SECRET_KEY=x AWS_CBOR_DISABLE=true
 script: 
   - ./localstack.sh
   - sbt ++$TRAVIS_SCALA_VERSION clean compile flowLintLib test doc
