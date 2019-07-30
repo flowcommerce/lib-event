@@ -3,11 +3,14 @@ scala:
   - 2.12.8
 jdk:
   - openjdk10
+services:
+  - docker
 cache:
   directories:
     - $HOME/.ivy2/cache
     - $HOME/.sbt/boot/
 script: 
+  - ./localstack.sh
   - sbt ++$TRAVIS_SCALA_VERSION clean compile flowLintLib test doc
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm
