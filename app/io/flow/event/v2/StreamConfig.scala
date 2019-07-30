@@ -9,7 +9,6 @@ import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain
 import software.amazon.awssdk.core.client.config.{ClientAsyncConfiguration, ClientOverrideConfiguration}
 import software.amazon.awssdk.core.retry.RetryPolicy
-import software.amazon.awssdk.http.Protocol
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
@@ -65,8 +64,8 @@ case class DefaultStreamConfig(
       .connectionTimeToLive(Duration.ofMillis(600000))
       .maxConcurrency(Integer.MAX_VALUE)
 
-    endpoints.kinesis.foreach { _ => // if we have a custom endpoint, then don't use HTTP2
-      httpClientBuilder.protocol(Protocol.HTTP1_1)
+    endpoints.protocol.foreach { p =>
+      httpClientBuilder.protocol(p)
     }
 
     val httpClient = httpClientBuilder.build
