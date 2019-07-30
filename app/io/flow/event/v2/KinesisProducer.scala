@@ -143,6 +143,12 @@ case class KinesisProducer[T](
           .withStreamName(config.streamName)
           .withRetentionPeriodHours(72)
       )
+    }.map { _ =>
+      // createStream() immediately returns. we need to wait for the stream to go from CREATING -> ACTIVE.
+      while (kinesisClient.describeStream(config.streamName).getStreamDescription.getStreamStatus == "CREATING") {
+        logger_.withKeyValue("stream", config.streamName).info("waiting for stream to be created")
+        Thread.sleep(3000)
+      }
     }.recover {
       case NonFatal(ex) => {
         ex match {
