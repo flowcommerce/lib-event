@@ -100,8 +100,7 @@ case class RunningConsumer(stream: MockStream, action: Seq[Record] => Unit) {
   }
 
   def shutdown(): Unit = {
-    stream.clearConsumed()
-    stream.clearPending()
+    stream.clear()
   }
 
 }
@@ -159,6 +158,13 @@ case class MockStream(streamName: String, debug: Boolean = false, logger: Rollba
 
   def pending: Seq[Record] = pendingRecords.asScala.toSeq
   def consumed: Seq[Record] = consumedRecords.asScala.toSeq
+
+  def clear(): Unit = {
+    synchronized {
+      clearPending()
+      clearConsumed()
+    }
+  }
 
   def clearPending(): Unit = pendingRecords.clear()
   def clearConsumed(): Unit = consumedRecords.clear()
