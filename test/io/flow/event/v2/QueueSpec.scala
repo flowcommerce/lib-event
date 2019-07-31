@@ -13,7 +13,7 @@ import org.scalatestplus.play.PlaySpec
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
 
-class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers {
+class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with KinesisIntegrationSpec {
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()
