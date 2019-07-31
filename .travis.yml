@@ -11,8 +11,9 @@ cache:
     - $HOME/.sbt/boot/
 env:
   - AWS_ACCESS_KEY=x AWS_SECRET_KEY=x AWS_CBOR_DISABLE=true
-script: 
+before_script:
   - ./localstack.sh
+script:
   - sbt ++$TRAVIS_SCALA_VERSION clean compile flowLintLib test doc
   # Tricks to avoid unnecessary cache updates
   - find $HOME/.sbt -name "*.lock" | xargs rm
