@@ -52,11 +52,7 @@ trait Helpers {
 
   def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Seq[Record] = {
     val all = scala.collection.mutable.ListBuffer[Record]()
-    println(s"  --> consumeUntil for eventId[$eventId]")
     q.consume[T] { recs =>
-      recs.foreach { rec =>
-        println(s"  --> record eventId[${rec.eventId}]")
-      }
       all ++= recs
     }
 
