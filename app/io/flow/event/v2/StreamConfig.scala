@@ -102,11 +102,11 @@ object StreamConfig {
         .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
 
       config.endpoints.kinesis.foreach { ep =>
-        kclConf.setKinesisEndpoint(ep)
+        kclConf.withKinesisEndpoint(ep)
       }
 
       config.endpoints.dynamodb.foreach { ep =>
-        kclConf.setDynamoDBEndpoint(ep)
+        kclConf.withDynamoDBEndpoint(ep)
       }
 
       kclConf
