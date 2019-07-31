@@ -54,10 +54,7 @@ case class DefaultStreamConfig(
 ) extends StreamConfig {
 
   override def kinesisClient: AmazonKinesis = {
-    AmazonKinesisClientBuilder.standard().
-      withEndpointConfiguration(
-        new EndpointConfiguration(endpoints.kinesis, endpoints.region)
-      ).
+    val kclb = AmazonKinesisClientBuilder.standard().
       withCredentials(awsCredentialsProvider).
       withClientConfiguration(
         new ClientConfiguration()
@@ -65,8 +62,13 @@ case class DefaultStreamConfig(
           .withMaxConsecutiveRetriesBeforeThrottling(1)
           .withThrottledRetries(true)
           .withConnectionTTL(600000)
-      ).
-      build()
+      )
+
+    endpoints.kinesis.map { ep =>
+      kclb.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    }
+
+    kclb.build
   }
 
 }
@@ -81,14 +83,12 @@ object StreamConfig {
         }
       }
 
-      new KinesisClientLibConfiguration(
+      val kclConf = new KinesisClientLibConfiguration(
         config.appName,
         config.streamName,
         creds,
         config.workerId
       ).withTableName(config.dynamoTableName)
-        .withKinesisEndpoint(config.endpoints.kinesis)
-        .withDynamoDBEndpoint(config.endpoints.dynamodb)
         .withInitialLeaseTableReadCapacity(dynamoCapacity)
         .withInitialLeaseTableWriteCapacity(dynamoCapacity)
         .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
@@ -100,6 +100,16 @@ object StreamConfig {
         .withMaxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
         .withMetricsLevel(MetricsLevel.NONE)
         .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+
+      config.endpoints.kinesis.map { ep =>
+        kclConf.withKinesisEndpoint(ep)
+      }
+
+      config.endpoints.dynamodb.map { ep =>
+        kclConf.withDynamoDBEndpoint(ep)
+      }
+
+      kclConf
     }
   }
 }

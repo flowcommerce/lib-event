@@ -30,12 +30,12 @@ class AWSEndpoints @Inject() (environment: Environment) {
   val region = "us-east-1"
 
   val kinesis = environment.mode match {
-    case Mode.Test => "http://localhost:4568" // localstack
-    case _ => s"https://kinesis.$region.amazonaws.com"
+    case Mode.Test => Some("http://localhost:4568") // localstack
+    case _ => None
   }
 
   val dynamodb = environment.mode match {
-    case Mode.Test => "http://localhost:4569" // localstack
-    case _ => s"https://dynamodb.$region.amazonaws.com"
+    case Mode.Test => Some("http://localhost:4569") // localstack
+    case _ => None
   }
 }
