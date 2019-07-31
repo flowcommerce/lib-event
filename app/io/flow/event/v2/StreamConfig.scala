@@ -64,8 +64,8 @@ case class DefaultStreamConfig(
           .withConnectionTTL(600000)
       )
 
-    endpoints.kinesis.map { ep =>
-      kclb.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    endpoints.kinesis.foreach { ep =>
+      kclb.setEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
     }
 
     kclb.build
@@ -101,12 +101,12 @@ object StreamConfig {
         .withMetricsLevel(MetricsLevel.NONE)
         .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
 
-      config.endpoints.kinesis.map { ep =>
-        kclConf.withKinesisEndpoint(ep)
+      config.endpoints.kinesis.foreach { ep =>
+        kclConf.setKinesisEndpoint(ep)
       }
 
-      config.endpoints.dynamodb.map { ep =>
-        kclConf.withDynamoDBEndpoint(ep)
+      config.endpoints.dynamodb.foreach { ep =>
+        kclConf.setDynamoDBEndpoint(ep)
       }
 
       kclConf
