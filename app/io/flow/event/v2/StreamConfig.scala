@@ -53,7 +53,7 @@ case class DefaultStreamConfig(
   endpoints: AWSEndpoints,
 ) extends StreamConfig {
 
-  override def kinesisClient: AmazonKinesis = {
+  override lazy val kinesisClient: AmazonKinesis = {
     val kclb = AmazonKinesisClientBuilder.standard().
       withCredentials(awsCredentialsProvider).
       withClientConfiguration(
