@@ -13,11 +13,13 @@ trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
   override def beforeAll(): Unit = {
     Localstack.teardownInfrastructure()
 
-    localstackDocker.startup(
-      LocalstackDockerConfiguration.builder()
-        .environmentVariables(Map("SERVICES" -> "kinesis,dynamodb").asJava)
-        .build()
-    )
+    val conf = LocalstackDockerConfiguration.builder()
+      .environmentVariables(Map("SERVICES" -> "kinesis,dynamodb").asJava)
+      .build()
+
+    println(conf)
+
+    localstackDocker.startup(conf)
   }
 
   override def afterAll(): Unit = {
