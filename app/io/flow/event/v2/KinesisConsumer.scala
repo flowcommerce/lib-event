@@ -1,6 +1,6 @@
 package io.flow.event.v2
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 
 import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.services.kinesis.clientlibrary.exceptions._
@@ -34,16 +34,31 @@ case class KinesisConsumer (
 
   private[this] val exec = Executors.newSingleThreadExecutor()
 
-  logger
-    .withKeyValue("class", this.getClass.getName)
-    .withKeyValue("stream", config.streamName)
-    .withKeyValue("worker_id", config.workerId)
-    .info("Started")
+  private[this] val logger_ =
+    logger
+      .withKeyValue("class", this.getClass.getName)
+      .withKeyValue("stream", config.streamName)
+      .withKeyValue("worker_id", config.workerId)
 
+  logger_.info("Started")
   exec.execute(worker)
 
   def shutdown(): Unit = {
+    // kill the consumers first
+    logger_.info("Shutting down consumer")
+    if (worker.startGracefulShutdown().get())
+      logger_.info("Worker gracefully shutdown")
+    else
+      logger_.warn("Worker terminated with exception")
+
+    // then shut down the Executor and wait for all Runnables to finish
     exec.shutdown()
+    if (exec.awaitTermination(3, TimeUnit.MINUTES))
+      logger_.info("Worker executor terminated")
+    else
+      logger_.warn("Worker executor termination timed out")
+
+    ()
   }
 
 }

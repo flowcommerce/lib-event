@@ -8,12 +8,12 @@ import org.scalatest.{BeforeAndAfterAll, Suite}
 import scala.collection.JavaConverters._
 
 trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
-  val localstack = LocalstackDocker.INSTANCE
+  val localstackDocker = LocalstackDocker.INSTANCE
 
   override def beforeAll(): Unit = {
     Localstack.teardownInfrastructure()
 
-    localstack.startup(
+    localstackDocker.startup(
       LocalstackDockerConfiguration.builder()
         .environmentVariables(Map("SERVICES" -> "kinesis,dynamodb").asJava)
         .build()
@@ -21,6 +21,6 @@ trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
   }
 
   override def afterAll(): Unit = {
-    localstack.stop()
+    localstackDocker.stop()
   }
 }

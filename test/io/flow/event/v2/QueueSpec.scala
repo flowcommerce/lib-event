@@ -69,13 +69,15 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
     }
   }
 
-  /*
-TODO: Figure out how to run this test - the worker is not shutting down in time to test new stream
   "keeps track of sequence number" in {
     withConfig { config =>
       val testObject1 = TestObject(UUID.randomUUID().toString)
 
-      val q = new DefaultQueue(config)
+      val creds = new AWSCreds(config)
+      val rollbar = RollbarLogger.SimpleLogger
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
+
+      val q = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
       val producer = q.producer[TestEvent]()
 
       val eventId1 = publishTestObject(producer, testObject1)
@@ -102,6 +104,5 @@ TODO: Figure out how to run this test - the worker is not shutting down in time 
       q.shutdown
     }
   }
- */
 
 }
