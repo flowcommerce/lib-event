@@ -182,6 +182,10 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
     }
 
     withQueue { q =>
+      Try {
+        q.streamConfig[TestEvent].kinesisClient.deleteStream(q.streamConfig[TestEvent].streamName)
+      }
+
       // let's make sure the stream is empty
       streamContents(q) mustBe empty
 
@@ -200,7 +204,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       executor.scheduleAtFixedRate(producerRunnable, 0, 1, TimeUnit.SECONDS)
 
       // eventually stream should contain pending elements
-      eventuallyInNSeconds(2) {
+      eventuallyInNSeconds(20) {
         pendingEvents.intValue() must be > 1
       }
 
