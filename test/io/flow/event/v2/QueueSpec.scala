@@ -101,8 +101,6 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
 
   "produce and consume concurrently" in {
     withQueue { q =>
-      val rollbar = RollbarLogger.SimpleLogger
-
       val consumersPoolSize = 1
       val producersPoolSize = 6
       // the json conversion when publishing is quite heavy and therefore makes it hard to huge a much bigger number
@@ -124,7 +122,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       val start = System.currentTimeMillis()
 
       // publish concurrently
-      (1 to eventsSize/10).foreach { i =>
+      (1 to eventsSize/10).foreach { _ =>
         Future {
           // wait 20sec for the consumers to start up
           while (System.currentTimeMillis() - start < 20 * 1000)
