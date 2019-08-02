@@ -136,13 +136,11 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
             testObject = TestObject(id = "1")
           ))
           producer.publishBatch(objs)
-          println(s"published ${i*10} / ${eventsSize}")
         }(producerContext)
       }
 
       // eventually we should have consumed it all
       eventuallyInNSeconds(120) {
-        rollbar.info(s"processed ${count.longValue()} / $eventsSize events")
         count.longValue() mustBe eventsSize
       }
 
