@@ -1,10 +1,11 @@
 package io.flow.event.v2
 
 import java.util.UUID
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.LongAdder
 
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
+import com.amazonaws.services.kinesis.model.{GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, ShardIteratorType}
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
@@ -15,7 +16,9 @@ import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success, Try}
 
 class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with KinesisIntegrationSpec {
 
@@ -146,5 +149,99 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
     }
   }
 
+  "shutdown consumers" in {
+    def streamContents(q: DefaultQueue) = {
+      val client = q.streamConfig[TestEvent].kinesisClient
+      val streamName = q.streamConfig[TestEvent].streamName
+
+      Try {
+        val shards = client.listShards(
+          new ListShardsRequest()
+            .withStreamName(streamName)
+        ).getShards.asScala
+
+        val iterator = client.getShardIterator(
+          new GetShardIteratorRequest()
+            .withStreamName(streamName)
+            .withShardId(shards.head.getShardId)
+            .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
+        ).getShardIterator
+
+        val records = client.getRecords(
+          new GetRecordsRequest()
+            .withShardIterator(iterator)
+        ).getRecords.asScala
+
+        records.toList
+      } match {
+        case Success(recs) => recs
+        case Failure(ex) =>
+          RollbarLogger.SimpleLogger.warn("Couldn't fetch stream contents", ex)
+          Nil
+      }
+    }
+
+    withQueue { q =>
+      // let's make sure the stream is empty
+      streamContents(q) mustBe empty
+
+      val pendingEvents = new LongAdder()
+
+      // produce an element every 1 sec
+      val producer = q.producer[TestEvent]()
+      val producerRunnable = new Runnable {
+        override def run(): Unit = {
+          publishTestObject(producer, TestObject(id = "1"))
+          pendingEvents.increment()
+          ()
+        }
+      }
+      val executor = Executors.newSingleThreadScheduledExecutor()
+      executor.scheduleAtFixedRate(producerRunnable, 0, 1, TimeUnit.SECONDS)
+
+      // eventually stream should contain pending elements
+      eventuallyInNSeconds(2) {
+        pendingEvents.intValue() must be > 1
+      }
+
+      // consume
+      q.consume[TestEvent](recs => pendingEvents.add(-recs.length.toLong))
+
+      // eventually, stream should be almost empty
+      eventuallyInNSeconds(50) {
+        pendingEvents.intValue() must be <= 1
+      }
+
+      q.shutdownConsumers()
+
+      // eventually stream should not be almost empty any more
+      eventuallyInNSeconds(2) {
+        pendingEvents.intValue() must be > 1
+      }
+
+      // bring in 2 consumers on the same stream
+      q.consume[TestEvent](recs => {
+        println(s"consumer 1 processing ${recs.length} records")
+        pendingEvents.add(-recs.length.toLong)
+      })
+      q.consume[TestEvent](recs => {
+        println(s"consumer 2 processing ${recs.length} records")
+        pendingEvents.add(-recs.length.toLong)
+      })
+
+      eventuallyInNSeconds(150) {
+        pendingEvents.intValue() must be <= 1
+      }
+
+      q.shutdownConsumers()
+
+      // eventually stream should not be almost empty any more
+      eventuallyInNSeconds(2) {
+        pendingEvents.intValue() must be > 1
+      }
+
+      executor.shutdown()
+    }
+  }
 
 }

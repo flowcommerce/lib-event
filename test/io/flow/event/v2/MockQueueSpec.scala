@@ -99,7 +99,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
     // let's make sure the stream is empty
     q.stream[TestEvent].pending mustBe empty
 
-    // produce an element every 3 ms
+    // produce an element every 100 ms
     val producer = q.producer[TestEvent]()
     val producerRunnable = new Runnable {
       override def run(): Unit = {
