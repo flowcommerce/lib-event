@@ -53,14 +53,9 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
   }
 
   "can publish and consume an event" in {
-    withConfig { config =>
+    withQueue { q =>
       val testObject = TestObject(UUID.randomUUID().toString)
 
-      val creds = new AWSCreds(config)
-      val rollbar = RollbarLogger.SimpleLogger
-      val endpoints = app.injector.instanceOf[AWSEndpoints]
-
-      val q = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
       val producer = q.producer[TestEvent]()
 
       val eventId = publishTestObject(producer, testObject)
@@ -74,14 +69,9 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
   }
 
   "keeps track of sequence number" in {
-    withConfig { config =>
+    withQueue { q =>
       val testObject1 = TestObject(UUID.randomUUID().toString)
 
-      val creds = new AWSCreds(config)
-      val rollbar = RollbarLogger.SimpleLogger
-      val endpoints = app.injector.instanceOf[AWSEndpoints]
-
-      val q = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
       val producer = q.producer[TestEvent]()
 
       val eventId1 = publishTestObject(producer, testObject1)
@@ -110,10 +100,8 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
   }
 
   "produce and consume concurrently" in {
-    withConfig { config =>
-      val creds = new AWSCreds(config)
+    withQueue { q =>
       val rollbar = RollbarLogger.SimpleLogger
-      val endpoints = app.injector.instanceOf[AWSEndpoints]
 
       val consumersPoolSize = 1
       val producersPoolSize = 6
@@ -122,7 +110,6 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
       val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
 
-      val q = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
       val producer = q.producer[TestEvent]()
 
       val count = new LongAdder()

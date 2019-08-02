@@ -3,12 +3,15 @@ package io.flow.event.v2
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
+import io.flow.log.RollbarLogger
 import io.flow.play.clients.MockConfig
+import io.flow.play.metrics.MockMetricsSystem
 import io.flow.util.IdGenerator
 import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
 import play.api.Application
+
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
@@ -30,6 +33,17 @@ trait Helpers {
   def withConfig[T](f: MockConfig => T)(implicit app: Application): T = {
     config.set("name", "lib-event-test")
     f(config)
+  }
+
+  def withQueue[T](f: DefaultQueue => T)(implicit app: Application): T = {
+    withConfig { config =>
+      val creds = new AWSCreds(config)
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
+      val metrics = new MockMetricsSystem()
+      val rollbar = RollbarLogger.SimpleLogger
+
+      f(new DefaultQueue(config, creds, endpoints, metrics, rollbar))
+    }
   }
 
   def publishTestObject(producer: Producer[TestEvent], o: TestObject): String = {
