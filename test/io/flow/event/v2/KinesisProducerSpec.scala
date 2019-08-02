@@ -8,7 +8,6 @@ import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
-import io.flow.play.metrics.MockMetricsSystem
 import org.joda.time.DateTime
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers._
