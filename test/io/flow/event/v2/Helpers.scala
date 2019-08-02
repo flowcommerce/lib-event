@@ -19,7 +19,7 @@ trait Helpers {
 
   private[this] def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
 
-  private[this] val eventIdGenerator = IdGenerator("evt")
+  val eventIdGenerator = IdGenerator("evt")
 
   def eventuallyInNSeconds[T](n: Int)(f: => T): T = {
     eventually(timeout(Span(n.toLong, Seconds))) {

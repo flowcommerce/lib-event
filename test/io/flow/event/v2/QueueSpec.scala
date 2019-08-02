@@ -1,17 +1,21 @@
 package io.flow.event.v2
 
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.LongAdder
 
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
-import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.lib.event.test.v0.models.json._
+import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import io.flow.play.metrics.MockMetricsSystem
-import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import org.scalatestplus.play.PlaySpec
+import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+
+import scala.concurrent.{ExecutionContext, Future}
 
 class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with KinesisIntegrationSpec {
 
@@ -104,5 +108,60 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       q.shutdown
     }
   }
+
+  "produce and consume concurrently" in {
+    withConfig { config =>
+      val creds = new AWSCreds(config)
+      val rollbar = RollbarLogger.SimpleLogger
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
+
+      val consumersPoolSize = 1
+      val producersPoolSize = 6
+      // the json conversion when publishing is quite heavy and therefore makes it hard to huge a much bigger number
+      val eventsSize = 10000
+      val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
+      val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
+
+      val q = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
+      val producer = q.producer[TestEvent]()
+
+      val count = new LongAdder()
+
+      // consume: start [[consumersPoolSize]] consumers consuming concurrently
+      (1 to consumersPoolSize).foreach { _ =>
+        Future {
+          q.consume[TestEvent](recs => count.add(recs.length.toLong))
+        }(consumerContext)
+      }
+
+      val start = System.currentTimeMillis()
+
+      // publish concurrently
+      (1 to eventsSize/10).foreach { i =>
+        Future {
+          // wait 20sec for the consumers to start up
+          while (System.currentTimeMillis() - start < 20 * 1000)
+            Thread.sleep(100)
+
+          val objs = (1 to 10) map (_ => TestObjectUpserted(
+            eventId = eventIdGenerator.randomId(),
+            timestamp = org.joda.time.DateTime.now(),
+            testObject = TestObject(id = "1")
+          ))
+          producer.publishBatch(objs)
+          println(s"published ${i*10} / ${eventsSize}")
+        }(producerContext)
+      }
+
+      // eventually we should have consumed it all
+      eventuallyInNSeconds(120) {
+        rollbar.info(s"processed ${count.longValue()} / $eventsSize events")
+        count.longValue() mustBe eventsSize
+      }
+
+      q.shutdown
+    }
+  }
+
 
 }
