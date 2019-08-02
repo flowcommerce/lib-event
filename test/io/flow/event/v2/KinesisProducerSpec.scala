@@ -121,7 +121,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
   }
 
   "real KinesisProducer" should {
-    "publish one in batch" in {
+    "put records into kinesis" in {
       withConfig { config =>
         val creds = new AWSCreds(config)
         val endpoints = app.injector.instanceOf[AWSEndpoints]
