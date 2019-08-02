@@ -14,7 +14,7 @@ trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
     Localstack.teardownInfrastructure()
 
     val conf = LocalstackDockerConfiguration.builder()
-      .environmentVariables(Map("SERVICES" -> "kinesis,dynamodb").asJava)
+      .environmentVariables(Map("SERVICES" -> "kinesis,dynamodb", "DEBUG" -> "1").asJava)
       .build()
 
     println(conf)
