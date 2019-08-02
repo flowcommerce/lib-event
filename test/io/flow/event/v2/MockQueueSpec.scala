@@ -76,7 +76,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
     // consume: start [[consumersSize]] consumers consuming concurrently
     (1 to consumersPoolSize).foreach { _ =>
       Future {
-        q.consume[TestEvent](_ => count.increment())
+        q.consume[TestEvent](recs => count.add(recs.length.toLong))
       } (consumerContext)
     }
 
