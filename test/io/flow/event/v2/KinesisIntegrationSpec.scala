@@ -1,6 +1,7 @@
 package io.flow.event.v2
 
 import cloud.localstack.Localstack
+import cloud.localstack.ServiceName.{KINESIS, DYNAMO}
 import cloud.localstack.docker.LocalstackDocker
 import cloud.localstack.docker.annotation.LocalstackDockerConfiguration
 import org.scalatest.{BeforeAndAfterAll, Suite}
@@ -14,7 +15,8 @@ trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
     Localstack.teardownInfrastructure()
 
     val conf = LocalstackDockerConfiguration.builder()
-      .environmentVariables(Map("SERVICES" -> "kinesis,dynamodb", "DEBUG" -> "1").asJava)
+      .environmentVariables(Map("SERVICES" -> s"$KINESIS,$DYNAMO").asJava)
+      .pullNewImage(true)
       .build()
 
     println(conf)
