@@ -5,7 +5,6 @@ import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.LongAdder
 
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
-import com.amazonaws.services.kinesis.model.{GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, ShardIteratorType}
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
@@ -52,6 +51,10 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       field.setAccessible(true)
       field.get(rff) mustBe 5678
 
+      config.values.foreach { case (key, _) =>
+        if (key.startsWith("development_workstation.lib.event.test.v0.test_event.json"))
+          config.values -= key
+      }
     }
   }
 
@@ -151,6 +154,8 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
 
   "shutdown consumers" in {
     def streamContents(q: DefaultQueue) = {
+      import com.amazonaws.services.kinesis.model._
+
       val client = q.streamConfig[TestEvent].kinesisClient
       val streamName = q.streamConfig[TestEvent].streamName
 
@@ -174,7 +179,8 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
 
         records.toList
       } match {
-        case Success(recs) => recs
+        case Success(recs) =>
+          recs
         case Failure(ex) =>
           RollbarLogger.SimpleLogger.warn("Couldn't fetch stream contents", ex)
           Nil
@@ -204,7 +210,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       executor.scheduleAtFixedRate(producerRunnable, 0, 1, TimeUnit.SECONDS)
 
       // eventually stream should contain pending elements
-      eventuallyInNSeconds(40) {
+      eventuallyInNSeconds(120) {
         pendingEvents.intValue() must be > 1
       }
 
@@ -212,14 +218,14 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       q.consume[TestEvent](recs => pendingEvents.add(-recs.length.toLong))
 
       // eventually, stream should be almost empty
-      eventuallyInNSeconds(50) {
+      eventuallyInNSeconds(120) {
         pendingEvents.intValue() must be <= 1
       }
 
       q.shutdownConsumers()
 
       // eventually stream should not be almost empty any more
-      eventuallyInNSeconds(2) {
+      eventuallyInNSeconds(120) {
         pendingEvents.intValue() must be > 1
       }
 
@@ -233,14 +239,14 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
         pendingEvents.add(-recs.length.toLong)
       })
 
-      eventuallyInNSeconds(150) {
+      eventuallyInNSeconds(120) {
         pendingEvents.intValue() must be <= 1
       }
 
       q.shutdownConsumers()
 
       // eventually stream should not be almost empty any more
-      eventuallyInNSeconds(2) {
+      eventuallyInNSeconds(120) {
         pendingEvents.intValue() must be > 1
       }
 
