@@ -105,7 +105,7 @@ case class KinesisRecordProcessor[T](
       .info("Initializing")
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    logger_.info("Processing records")
+    logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
 
     streamLagMetric.update(input.getMillisBehindLatest)
     numRecordsMetric.update(input.getRecords.size)

@@ -204,7 +204,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       executor.scheduleAtFixedRate(producerRunnable, 0, 1, TimeUnit.SECONDS)
 
       // eventually stream should contain pending elements
-      eventuallyInNSeconds(20) {
+      eventuallyInNSeconds(40) {
         pendingEvents.intValue() must be > 1
       }
 
