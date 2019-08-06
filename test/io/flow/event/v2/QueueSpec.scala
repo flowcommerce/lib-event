@@ -4,6 +4,8 @@ import java.util.UUID
 import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.LongAdder
 
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
@@ -50,11 +52,6 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       val field = classOf[SimpleRecordsFetcherFactory].getDeclaredField("idleMillisBetweenCalls")
       field.setAccessible(true)
       field.get(rff) mustBe 5678
-
-      config.values.foreach { case (key, _) =>
-        if (key.startsWith("development_workstation.lib.event.test.v0.test_event.json"))
-          config.values -= key
-      }
     }
   }
 
@@ -188,8 +185,39 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
     }
 
     withQueue { q =>
-      Try {
-        q.streamConfig[TestEvent].kinesisClient.deleteStream(q.streamConfig[TestEvent].streamName)
+      val sc = q.streamConfig[TestEvent]
+
+      // delete stream
+      try {
+        sc.kinesisClient.deleteStream(sc.streamName)
+
+        while (sc.kinesisClient.describeStream(sc.streamName).getStreamDescription.getStreamStatus == "DELETING") {
+          println("waiting for stream to be deleted")
+          Thread.sleep(1000)
+        }
+
+      } catch {
+        case _: com.amazonaws.services.kinesis.model.ResourceNotFoundException => // ok
+      }
+
+      // delete dynamo table
+      try {
+        val dynamo = AmazonDynamoDBClientBuilder.standard()
+          .withCredentials(sc.awsCredentialsProvider)
+          .withEndpointConfiguration(
+            new EndpointConfiguration(sc.endpoints.dynamodb.get, sc.endpoints.region)
+          )
+          .build
+
+        dynamo.deleteTable(sc.dynamoTableName)
+
+        while (dynamo.describeTable(sc.dynamoTableName).getTable.getTableStatus == "DELETING") {
+          println("waiting for table to be deleted")
+          Thread.sleep(1000)
+        }
+      } catch {
+        case _: com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException => // ok
+        case _: com.amazonaws.AmazonServiceException => // delete this when https://github.com/localstack/localstack/pull/1461 is merged
       }
 
       // let's make sure the stream is empty
