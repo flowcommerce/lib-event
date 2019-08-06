@@ -31,8 +31,9 @@ trait Helpers {
   }
 
   def withConfig[T](f: MockConfig => T)(implicit app: Application): T = {
-    config.set("name", "lib-event-test")
-    f(config)
+    val c = config
+    c.set("name", "lib-event-test")
+    f(c)
   }
 
   def withQueue[T](f: DefaultQueue => T)(implicit app: Application): T = {
