@@ -1,6 +1,6 @@
 package io.flow.event.v2
 
-import java.util.concurrent.{Executors, TimeUnit, TimeoutException}
+import java.util.concurrent.{ExecutionException, Executors, TimeUnit, TimeoutException}
 
 import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.services.kinesis.clientlibrary.exceptions._
@@ -53,7 +53,9 @@ case class KinesisConsumer (
         logger_.warn("Worker terminated with exception")
     } catch {
       case _: TimeoutException =>
-        logger_.warn("Worker termination timed out")
+        logger_.error("Worker termination timed out")
+      case e @ (_: InterruptedException | _: ExecutionException) =>
+        logger_.error("Worker terminated with exception", e)
     }
 
     // then shut down the Executor and wait for all Runnables to finish
