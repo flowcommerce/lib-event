@@ -17,7 +17,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% s"lib-play$libSuffix2" % "0.5.71",
+      "io.flow" %% s"lib-play$libSuffix2" % "0.5.73",
       "io.flow" %% s"lib-play-graphite$libSuffix2" % "0.1.2",
       "com.amazonaws" % "amazon-kinesis-client" % "1.9.3",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
@@ -25,7 +25,8 @@ lazy val root = project
       "org.mockito" % "mockito-core" % "2.23.4" % Test,
       "io.flow" %% s"lib-test-utils$libSuffix1" % "0.0.58" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.1"),
-      "com.github.ghik" %% "silencer-lib" % "1.4.1" % Provided
+      "com.github.ghik" %% "silencer-lib" % "1.4.1" % Provided,
+      "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
     ),
     resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",

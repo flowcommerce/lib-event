@@ -14,6 +14,7 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
 
+// TODO: produce and consume more than one record at a time
 @Singleton
 class MockQueue @Inject()(
   logger: RollbarLogger

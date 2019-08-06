@@ -1,6 +1,6 @@
 package io.flow.event.v2
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{ExecutionException, Executors, TimeUnit, TimeoutException}
 
 import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.services.kinesis.clientlibrary.exceptions._
@@ -26,7 +26,6 @@ case class KinesisConsumer (
   logger: RollbarLogger,
 ) extends StreamUsage {
 
-
   private[this] val worker = new Worker.Builder()
     .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
     .config(config.toKclConfig(creds))
@@ -35,16 +34,38 @@ case class KinesisConsumer (
 
   private[this] val exec = Executors.newSingleThreadExecutor()
 
-  logger
-    .withKeyValue("class", this.getClass.getName)
-    .withKeyValue("stream", config.streamName)
-    .withKeyValue("worker_id", config.workerId)
-    .info("Started")
+  private[this] val logger_ =
+    logger
+      .withKeyValue("class", this.getClass.getName)
+      .withKeyValue("stream", config.streamName)
+      .withKeyValue("worker_id", config.workerId)
 
+  logger_.info("Started")
   exec.execute(worker)
 
   def shutdown(): Unit = {
+    // kill the consumers first
+    try {
+      logger_.info("Shutting down consumer")
+      if (worker.startGracefulShutdown().get(2, TimeUnit.MINUTES))
+        logger_.info("Worker gracefully shutdown")
+      else
+        logger_.warn("Worker terminated with exception")
+    } catch {
+      case _: TimeoutException =>
+        logger_.error("Worker termination timed out")
+      case e @ (_: InterruptedException | _: ExecutionException) =>
+        logger_.error("Worker terminated with exception", e)
+    }
+
+    // then shut down the Executor and wait for all Runnables to finish
     exec.shutdown()
+    if (exec.awaitTermination(2, TimeUnit.MINUTES))
+      logger_.info("Worker executor terminated")
+    else
+      logger_.warn("Worker executor termination timed out")
+
+    ()
   }
 
 }
@@ -91,7 +112,7 @@ case class KinesisRecordProcessor[T](
       .info("Initializing")
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    logger_.info("Processing records")
+    logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
 
     streamLagMetric.update(input.getMillisBehindLatest)
     numRecordsMetric.update(input.getRecords.size)

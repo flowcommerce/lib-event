@@ -3,12 +3,15 @@ package io.flow.event.v2
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
+import io.flow.log.RollbarLogger
 import io.flow.play.clients.MockConfig
+import io.flow.play.metrics.MockMetricsSystem
 import io.flow.util.IdGenerator
 import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
 import play.api.Application
+
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
@@ -19,7 +22,7 @@ trait Helpers {
 
   private[this] def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
 
-  private[this] val eventIdGenerator = IdGenerator("evt")
+  val eventIdGenerator = IdGenerator("evt")
 
   def eventuallyInNSeconds[T](n: Int)(f: => T): T = {
     eventually(timeout(Span(n.toLong, Seconds))) {
@@ -28,8 +31,20 @@ trait Helpers {
   }
 
   def withConfig[T](f: MockConfig => T)(implicit app: Application): T = {
-    config.set("name", "lib-event-test")
-    f(config)
+    val c = config
+    c.set("name", "lib-event-test")
+    f(c)
+  }
+
+  def withIntegrationQueue[T](f: DefaultQueue => T)(implicit app: Application): T = {
+    withConfig { config =>
+      val creds = new AWSCreds(config)
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
+      val metrics = new MockMetricsSystem()
+      val rollbar = RollbarLogger.SimpleLogger
+
+      f(new DefaultQueue(config, creds, endpoints, metrics, rollbar))
+    }
   }
 
   def publishTestObject(producer: Producer[TestEvent], o: TestObject): String = {
@@ -44,18 +59,16 @@ trait Helpers {
     eventId
   }
 
-  def consume[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 35): Record = {
+  def consume[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Record = {
     consumeUntil[T](q, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
       sys.error(s"Failed to find eventId[$eventId]")
     }
   }
 
-  def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 35): Seq[Record] = {
+  def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Seq[Record] = {
     val all = scala.collection.mutable.ListBuffer[Record]()
-    // println(s"  --> consumeUntil for eventId[$eventId]")
-    q.consume[T] { rec =>
-      // println(s"  --> record eventId[${rec.eventId}]")
-      all ++= rec
+    q.consume[T] { recs =>
+      all ++= recs
     }
 
     Await.result(

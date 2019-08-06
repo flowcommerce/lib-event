@@ -5,6 +5,7 @@ import java.util.UUID
 
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentialsProviderChain
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
@@ -21,6 +22,7 @@ trait StreamConfig {
   def maxLeasesForWorker: Option[Int]
   def maxLeasesToStealAtOneTime: Option[Int]
   def eventClass: Type
+  def endpoints: AWSEndpoints
 
   def kinesisClient: AmazonKinesis
 
@@ -47,11 +49,12 @@ case class DefaultStreamConfig(
   idleTimeBetweenReadsInMillis: Option[Long],
   maxLeasesForWorker: Option[Int],
   maxLeasesToStealAtOneTime: Option[Int],
-  eventClass: Type
+  eventClass: Type,
+  endpoints: AWSEndpoints,
 ) extends StreamConfig {
 
-  override def kinesisClient: AmazonKinesis = {
-    AmazonKinesisClientBuilder.standard().
+  override lazy val kinesisClient: AmazonKinesis = {
+    val kclb = AmazonKinesisClientBuilder.standard().
       withCredentials(awsCredentialsProvider).
       withClientConfiguration(
         new ClientConfiguration()
@@ -59,9 +62,15 @@ case class DefaultStreamConfig(
           .withMaxConsecutiveRetriesBeforeThrottling(1)
           .withThrottledRetries(true)
           .withConnectionTTL(600000)
-      ).
-      build()
+      )
+
+    endpoints.kinesis.foreach { ep =>
+      kclb.setEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    }
+
+    kclb.build
   }
+
 }
 
 object StreamConfig {
@@ -74,7 +83,7 @@ object StreamConfig {
         }
       }
 
-      new KinesisClientLibConfiguration(
+      val kclConf = new KinesisClientLibConfiguration(
         config.appName,
         config.streamName,
         creds,
@@ -91,6 +100,16 @@ object StreamConfig {
         .withMaxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
         .withMetricsLevel(MetricsLevel.NONE)
         .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+
+      config.endpoints.kinesis.foreach { ep =>
+        kclConf.withKinesisEndpoint(ep)
+      }
+
+      config.endpoints.dynamodb.foreach { ep =>
+        kclConf.withDynamoDBEndpoint(ep)
+      }
+
+      kclConf
     }
   }
 }
