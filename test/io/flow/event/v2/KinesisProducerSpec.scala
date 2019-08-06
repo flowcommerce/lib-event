@@ -160,7 +160,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
         records.length must be (1)
 
         val record = Record.fromByteArray(
-          arrivalTimestamp = new DateTime(records.head.approximateArrivalTimestamp),
+          arrivalTimestamp = new DateTime(records.head.approximateArrivalTimestamp.toEpochMilli),
           value = records.head.data.asByteArray()
         )
 
