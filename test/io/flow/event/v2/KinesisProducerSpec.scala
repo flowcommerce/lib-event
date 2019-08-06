@@ -121,7 +121,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
 
   "real KinesisProducer" should {
     "put records into kinesis" in {
-      withQueue { queue =>
+      withIntegrationQueue { queue =>
         val producer = queue.producer[TestEvent]()
 
         val sc = queue.streamConfig[TestEvent]

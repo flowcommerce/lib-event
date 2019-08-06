@@ -56,7 +56,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
   }
 
   "can publish and consume an event" in {
-    withQueue { q =>
+    withIntegrationQueue { q =>
       val testObject = TestObject(UUID.randomUUID().toString)
 
       val producer = q.producer[TestEvent]()
@@ -72,7 +72,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
   }
 
   "keeps track of sequence number" in {
-    withQueue { q =>
+    withIntegrationQueue { q =>
       val testObject1 = TestObject(UUID.randomUUID().toString)
 
       val producer = q.producer[TestEvent]()
@@ -103,7 +103,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
   }
 
   "produce and consume concurrently" in {
-    withQueue { q =>
+    withIntegrationQueue { q =>
       val consumersPoolSize = 1
       val producersPoolSize = 6
       // the json conversion when publishing is quite heavy and therefore makes it hard to huge a much bigger number
@@ -184,7 +184,7 @@ class QueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with Kine
       }
     }
 
-    withQueue { q =>
+    withIntegrationQueue { q =>
       val sc = q.streamConfig[TestEvent]
 
       // delete stream

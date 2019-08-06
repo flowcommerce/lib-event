@@ -36,7 +36,7 @@ trait Helpers {
     f(c)
   }
 
-  def withQueue[T](f: DefaultQueue => T)(implicit app: Application): T = {
+  def withIntegrationQueue[T](f: DefaultQueue => T)(implicit app: Application): T = {
     withConfig { config =>
       val creds = new AWSCreds(config)
       val endpoints = app.injector.instanceOf[AWSEndpoints]
