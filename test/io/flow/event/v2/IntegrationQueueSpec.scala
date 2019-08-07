@@ -13,8 +13,6 @@ import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
-import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import software.amazon.awssdk.services.dynamodb.model.{DeleteTableRequest, DescribeTableRequest, TableStatus}
 import software.amazon.awssdk.services.kinesis.model._
 
 import scala.collection.JavaConverters._
@@ -187,62 +185,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
     }
 
     withIntegrationQueue { q =>
-      val sc = q.streamConfig[TestEvent]
-
-      // delete stream
-      try {
-        sc.kinesisClient.deleteStream(
-          DeleteStreamRequest.builder()
-            .streamName(sc.streamName)
-            .build()
-        ).get()
-
-        def status =
-          sc.kinesisClient.describeStream(
-            DescribeStreamRequest.builder().streamName(sc.streamName).build()
-          ).get().streamDescription()
-
-        while (status.streamStatus() == StreamStatus.DELETING) {
-          println("waiting for stream to be deleted")
-          Thread.sleep(1000)
-        }
-
-      } catch {
-        case ex: Exception =>
-          ex.getCause match {
-            case _: software.amazon.awssdk.services.kinesis.model.ResourceNotFoundException => // ok
-          }
-      }
-
-      // delete dynamo table
-      try {
-        val dynamo = DynamoDbAsyncClient.builder()
-          .credentialsProvider(sc.awsCredentialsProvider.creds)
-          .endpointOverride(sc.endpoints.dynamodb.get)
-          .build()
-
-        dynamo.deleteTable(
-          DeleteTableRequest.builder()
-            .tableName(sc.dynamoTableName)
-            .build()
-        ).get()
-
-        def status =
-          dynamo.describeTable(
-            DescribeTableRequest.builder().tableName(sc.dynamoTableName).build()
-          ).get().table
-
-        while (status.tableStatus() == TableStatus.DELETING) {
-          println("waiting for table to be deleted")
-          Thread.sleep(1000)
-        }
-      } catch {
-        case e: Exception =>
-          e.getCause match {
-            case _: software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException => // ok
-            case _: software.amazon.awssdk.services.dynamodb.model.DynamoDbException => // delete this when https://github.com/localstack/localstack/pull/1461 is merged
-          }
-      }
+      deleteStream(q.streamConfig[TestEvent])
 
       // let's make sure the stream is empty
       streamContents(q) mustBe empty
@@ -303,6 +246,99 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       }
 
       executor.shutdown()
+    }
+  }
+
+  "failing in a consumer causes records to be reprocessed" in {
+    withIntegrationQueue { queue =>
+      deleteStream(queue.streamConfig[TestEvent])
+
+      val producer = queue.producer[TestEvent]()
+
+      val asdf = publishTestObject(producer, TestObject(id = "asdf"))
+
+      var failed = false
+      var consumed = false
+
+      queue.consume[TestEvent] { recs =>
+        if (failed) {
+          recs.head.eventId must be (asdf)
+          consumed = true
+          ()
+        } else {
+          failed = true
+          throw new Exception("pretend crash")
+        }
+      }
+
+      eventuallyInNSeconds(120) {
+        consumed must be (true)
+      }
+
+      queue.shutdownConsumers()
+    }
+  }
+
+  "failing all retries causes record to be skipped" in {
+    withIntegrationQueue { queue =>
+      deleteStream(queue.streamConfig[TestEvent])
+
+      val producer = queue.producer[TestEvent]()
+
+      val asdf = publishTestObject(producer, TestObject(id = "asdf"))
+
+      var tries = 0
+      var gotHjkl = false
+
+      queue.consume[TestEvent] { recs =>
+        if (recs.head.eventId == asdf) {
+          tries += 1
+          println(s"Try $tries")
+          throw new Exception("pretend crash")
+        } else {
+          gotHjkl = true
+        }
+      }
+
+      eventuallyInNSeconds(120) {
+        tries must be (9)
+      }
+
+      publishTestObject(producer, TestObject(id = "hjkl"))
+
+      eventuallyInNSeconds(120) {
+        gotHjkl must be (true)
+      }
+
+      queue.shutdownConsumers()
+    }
+  }
+
+  "Events can still be processed even if consumer takes a long time" in {
+    withIntegrationQueue { queue =>
+      deleteStream(queue.streamConfig[TestEvent])
+
+      val producer = queue.producer[TestEvent]()
+
+      val objs = scala.collection.mutable.ArrayBuffer[String]()
+
+      for (i <- 1 to 10) {
+        objs += publishTestObject(producer, TestObject(id = i.toString))
+      }
+
+      queue.consume[TestEvent] { recs =>
+        Thread.sleep(20 * 1000)
+        recs.foreach { rec =>
+          objs must contain (rec.eventId)
+          objs -= rec.eventId
+        }
+      }
+
+      eventuallyInNSeconds(50) {
+        objs must be (empty)
+      }
+
+      queue.shutdownConsumers()
     }
   }
 
