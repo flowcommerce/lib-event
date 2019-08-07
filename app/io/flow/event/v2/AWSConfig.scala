@@ -1,5 +1,6 @@
 package io.flow.event.v2
 
+import com.amazonaws.SDKGlobalConfiguration
 import com.amazonaws.auth._
 import io.flow.play.util.Config
 import javax.inject.Inject
@@ -37,5 +38,12 @@ class AWSEndpoints @Inject() (environment: Environment) {
   val dynamodb = environment.mode match {
     case Mode.Test => Some("http://localhost:4569") // localstack
     case _ => None
+  }
+
+  environment.mode match {
+    case Mode.Test =>
+      // CBOR is a replacement for JSON. It is not yet supported by localstack
+      System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
+    case _ =>
   }
 }
