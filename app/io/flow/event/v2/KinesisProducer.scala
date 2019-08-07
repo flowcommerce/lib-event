@@ -1,6 +1,7 @@
 package io.flow.event.v2
 
 import java.util
+import java.util.concurrent.TimeUnit
 
 import com.github.ghik.silencer.silent
 import io.flow.event.Util
@@ -118,7 +119,7 @@ case class KinesisProducer[T](
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResponse = {
     val putRecordsRequest = PutRecordsRequest.builder().streamName(config.streamName).records(entries).build()
-    kinesisClient.putRecords(putRecordsRequest).get()
+    kinesisClient.putRecords(putRecordsRequest).get(30, TimeUnit.SECONDS)
   }
 
   override def shutdown(): Unit = {
@@ -135,7 +136,7 @@ case class KinesisProducer[T](
           .streamName(config.streamName)
           .shardCount(numberShards)
           .build()
-      ).get()
+      ).get(30, TimeUnit.SECONDS)
     }.map { _ =>
       // set retention to three days to recover from Flow service outages lasting longer than the default 24 hours
       // e.g. when a service comes back online it can recover the last 3 days of events from the Kinesis stream
@@ -144,12 +145,12 @@ case class KinesisProducer[T](
           .streamName(config.streamName)
           .retentionPeriodHours(72)
           .build()
-      ).get()
+      ).get(30, TimeUnit.SECONDS)
     }.map { _ =>
       def status =
         kinesisClient.describeStream(
           DescribeStreamRequest.builder().streamName(config.streamName).build()
-        ).get().streamDescription()
+        ).get(30, TimeUnit.SECONDS).streamDescription()
 
       // createStream() immediately returns. we need to wait for the stream to go from CREATING -> ACTIVE.
       while (status.streamStatus == StreamStatus.CREATING) {
