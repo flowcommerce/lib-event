@@ -38,6 +38,43 @@ trait StreamConfig {
     InetAddress.getLocalHost.getCanonicalHostName,
     UUID.randomUUID.toString
   ).mkString(":")
+
+  def toKclConfig(creds: AWSCredentialsProviderChain): KinesisClientLibConfiguration = {
+    val dynamoCapacity = {
+      FlowEnvironment.Current match {
+        case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
+        case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
+      }
+    }
+
+    val kclConf = new KinesisClientLibConfiguration(
+      appName,
+      streamName,
+      creds,
+      workerId
+    ).withTableName(dynamoTableName)
+      .withInitialLeaseTableReadCapacity(dynamoCapacity)
+      .withInitialLeaseTableWriteCapacity(dynamoCapacity)
+      .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+      .withCleanupLeasesUponShardCompletion(true)
+      .withIdleMillisBetweenCalls(idleMillisBetweenCalls.getOrElse(1500L))
+      .withIdleTimeBetweenReadsInMillis(idleTimeBetweenReadsInMillis.getOrElse(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS))
+      .withMaxRecords(maxRecords.getOrElse(1000))
+      .withMaxLeasesForWorker(maxLeasesForWorker.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_FOR_WORKER))
+      .withMaxLeasesToStealAtOneTime(maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
+      .withMetricsLevel(MetricsLevel.NONE)
+      .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+
+    endpoints.kinesis.foreach { ep =>
+      kclConf.withKinesisEndpoint(ep)
+    }
+
+    endpoints.dynamodb.foreach { ep =>
+      kclConf.withDynamoDBEndpoint(ep)
+    }
+
+    kclConf
+  }
 }
 
 case class DefaultStreamConfig(
@@ -71,45 +108,4 @@ case class DefaultStreamConfig(
     kclb.build
   }
 
-}
-
-object StreamConfig {
-  implicit class StreamConfigOps(val config: StreamConfig) extends AnyVal {
-    def toKclConfig(creds: AWSCredentialsProviderChain) = {
-      val dynamoCapacity = {
-        FlowEnvironment.Current match {
-          case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
-          case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
-        }
-      }
-
-      val kclConf = new KinesisClientLibConfiguration(
-        config.appName,
-        config.streamName,
-        creds,
-        config.workerId
-      ).withTableName(config.dynamoTableName)
-        .withInitialLeaseTableReadCapacity(dynamoCapacity)
-        .withInitialLeaseTableWriteCapacity(dynamoCapacity)
-        .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-        .withCleanupLeasesUponShardCompletion(true)
-        .withIdleMillisBetweenCalls(config.idleMillisBetweenCalls.getOrElse(1500L))
-        .withIdleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.getOrElse(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS))
-        .withMaxRecords(config.maxRecords.getOrElse(1000))
-        .withMaxLeasesForWorker(config.maxLeasesForWorker.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_FOR_WORKER))
-        .withMaxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
-        .withMetricsLevel(MetricsLevel.NONE)
-        .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
-
-      config.endpoints.kinesis.foreach { ep =>
-        kclConf.withKinesisEndpoint(ep)
-      }
-
-      config.endpoints.dynamodb.foreach { ep =>
-        kclConf.withDynamoDBEndpoint(ep)
-      }
-
-      kclConf
-    }
-  }
 }
