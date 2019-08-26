@@ -121,13 +121,9 @@ case class KinesisRecordProcessor[T](
 
     if (kinesisRecords.nonEmpty) {
       val flowRecords = kinesisRecords.map { record =>
-        val buffer = record.getData
-        val bytes = Array.fill[Byte](buffer.remaining)(0)
-        buffer.get(bytes)
-
         Record.fromByteArray(
           arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
-          value = bytes
+          value = record.getData.array()
         )
       }
       val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
