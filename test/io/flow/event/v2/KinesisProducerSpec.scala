@@ -65,7 +65,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
       when(streamConfig.streamName).thenReturn("lib-event-test-stream")
       when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
-      val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
+      val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, logger)
 
       val event = generateEvent()
       producer.publishBatch(Seq(event))
@@ -97,7 +97,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
       when(streamConfig.streamName).thenReturn("lib-event-test-stream")
       when(streamConfig.kinesisClient).thenReturn(kinesisClient)
 
-      val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, partitionKeyFieldName = "event_id", logger)
+      val producer = new KinesisProducer[TestEvent](streamConfig, numberShards = 1, logger)
 
       val events = {
         (1 to 500).map(_ => generateEvent()) ++

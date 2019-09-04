@@ -15,8 +15,7 @@ import scala.reflect.runtime.universe._
 trait Queue {
 
   def producer[T: TypeTag](
-    numberShards: Int = 1,
-    partitionKeyFieldName: String = "event_id"
+    numberShards: Int = 1
   ): Producer[T]
 
   /**
@@ -49,11 +48,16 @@ trait Queue {
 
 trait Producer[T] {
 
-  def publish[U <: T](event: U)(implicit serializer: play.api.libs.json.Writes[U]): Unit
+  def publish[U <: T](
+    event: U,
+    shardProvider: KinesisShardProvider[U] = OrganizationOrEventIdShardProvider[U]
+  )(implicit serializer: play.api.libs.json.Writes[U]): Unit
 
-  def publishBatch[U <: T](events: Seq[U])
-    (implicit serializer: play.api.libs.json.Writes[U]): Unit =
-    events.foreach(publish[U])
+  def publishBatch[U <: T](
+    events: Seq[U],
+    shardProvider: KinesisShardProvider[U] = OrganizationOrEventIdShardProvider[U]
+  )(implicit serializer: play.api.libs.json.Writes[U]): Unit =
+    events.foreach(publish(_, shardProvider))
 
   def shutdown(): Unit
 
@@ -79,13 +83,11 @@ class DefaultQueue @Inject() (
 
   override def producer[T: TypeTag](
     numberShards: Int = 1,
-    partitionKeyFieldName: String = "event_id"
   ): Producer[T] = {
     markProducesStream(streamName[T], typeOf[T])
     KinesisProducer(
       streamConfig[T],
       numberShards,
-      partitionKeyFieldName,
       logger
     )
   }

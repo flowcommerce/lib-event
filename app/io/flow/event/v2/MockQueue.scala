@@ -42,8 +42,7 @@ class MockQueue @Inject()(
   override def appName: String = "io.flow.event.v2.MockQueue"
 
   override def producer[T: TypeTag](
-    numberShards: Int = 1,
-    partitionKeyFieldName: String = "event_id"
+    numberShards: Int = 1
   ): Producer[T] = {
     markProducesStream(streamName[T], typeOf[T])
     MockProducer(stream[T], debug = debug.get, logger)
@@ -183,18 +182,19 @@ case class MockProducer[T](stream: MockStream, debug: Boolean = false, logger: R
   }
 
   private def publish(event: JsValue): Unit = {
-    val r= Record.fromJsValue(
+    val r = Record.fromJsValue(
       arrivalTimestamp = DateTime.now,
       js = event
     )
 
     logDebug { s"Publishing event: $event" }
-    stream.publish(
-      r
-    )
+    stream.publish(r)
   }
 
-  override def publish[U <: T](event: U)(implicit serializer: Writes[U]): Unit = {
+  override def publish[U <: T](
+    event: U,
+    shardProvider: KinesisShardProvider[U] = (_: U, _: JsValue) => ""
+  )(implicit serializer: Writes[U]): Unit = {
     val w = serializer.writes(event)
     markProducedEvent(stream.streamName, w)
     publish(w)
