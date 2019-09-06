@@ -10,6 +10,7 @@ lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
   .settings(
+    javaOptions in Test += "-Dkamon.show-aspectj-missing-warning=no",
     testOptions += Tests.Argument("-oF"),
     libraryDependencies ++= Seq(
       ws,
