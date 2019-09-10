@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
 import com.amazonaws.services.kinesis.AmazonKinesis
-import com.amazonaws.services.kinesis.model.{DescribeStreamResult, GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, PutRecordsRequest, PutRecordsResult, ShardIteratorType, StreamDescription}
+import com.amazonaws.services.kinesis.model._
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
@@ -13,7 +13,7 @@ import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.Inspectors
-import org.scalatestplus.mockito.MockitoSugar
+import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
