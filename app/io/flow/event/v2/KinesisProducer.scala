@@ -5,7 +5,6 @@ import java.util
 
 import com.amazonaws.services.kinesis.model._
 import com.github.ghik.silencer.silent
-import io.flow.event.Util
 import io.flow.log.RollbarLogger
 import play.api.libs.json.{Json, Writes}
 
@@ -18,7 +17,6 @@ import scala.util.{Failure, Random, Success, Try}
 case class KinesisProducer[T](
   config: StreamConfig,
   numberShards: Int,
-  partitionKeyFieldName: String,
   logger: RollbarLogger
 ) extends Producer[T] with StreamUsage {
 
@@ -33,8 +31,11 @@ case class KinesisProducer[T](
 
   setup()
 
-  override def publish[U <: T](event: U)(implicit serializer: Writes[U]): Unit =
-    publishBatch(Seq(event))
+  override def publish[U <: T](
+    event: U,
+    shardFinder: KinesisShardProvider[U] = OrganizationOrEventIdShardProvider[U]
+  )(implicit serializer: Writes[U]): Unit =
+    publishBatch(Seq(event), shardFinder)
 
   /**
     * Publishes the events in batch, respecting Kinesis size limitations as defined in
@@ -43,7 +44,10 @@ case class KinesisProducer[T](
     * "Each PutRecords request can support up to 500 records. Each record in the request can be as large as 1 MB, up to
     * a limit of 5 MB for the entire request, including partition keys."
     */
-  override def publishBatch[U <: T](events: Seq[U])(implicit serializer: Writes[U]): Unit = {
+  override def publishBatch[U <: T](
+    events: Seq[U],
+    shardProvider: KinesisShardProvider[U] = OrganizationOrEventIdShardProvider[U]
+  )(implicit serializer: Writes[U]): Unit = {
     // Make sure that there are events: AWS will complain otherwise
     if (events.nonEmpty) {
       val batchedRecords = new ListBuffer[util.List[PutRecordsRequestEntry]]()
@@ -53,7 +57,7 @@ case class KinesisProducer[T](
       events.foldLeft((0L, 0L, firstBatch)) { case ((currentSize, currentBytesSize, currentBatch), evt) =>
         // convert to [[PutRecordsRequestEntry]]
         val event = serializer.writes(evt)
-        val partitionKey = Util.mustParseString(event, partitionKeyFieldName)
+        val partitionKey = shardProvider.get(evt, event)
         val data = Json.stringify(event).getBytes("UTF-8")
         val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
 
