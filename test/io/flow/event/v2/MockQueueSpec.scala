@@ -1,20 +1,20 @@
 package io.flow.event.v2
 
-import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.{AtomicReference, LongAdder}
+import java.util.concurrent.{Executors, TimeUnit}
 
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
-import org.scalatestplus.mockito.MockitoSugar
-import org.scalatestplus.play.guice.GuiceOneAppPerSuite
+import org.scalatest.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
+import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
 class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with MockitoSugar {
