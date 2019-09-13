@@ -26,7 +26,7 @@ lazy val root = project
       "com.github.ghik" %% "silencer-lib" % "1.4.2" % Provided,
       "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
     ),
-    resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
+    resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
     resolvers += "Artifactory" at "https://flow.jfrog.io/flow/libs-release/",
     credentials += Credentials(
