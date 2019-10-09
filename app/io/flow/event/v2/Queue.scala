@@ -4,7 +4,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
-import io.flow.play.metrics.MetricsSystem
 import io.flow.play.util.Config
 import io.flow.util.StreamNames
 import javax.inject.Inject
@@ -71,7 +70,6 @@ class DefaultQueue @Inject() (
   config: Config,
   creds: AWSCreds,
   endpoints: AWSEndpoints,
-  metrics: MetricsSystem,
   logger: RollbarLogger,
 ) extends Queue with StreamUsage {
 
@@ -102,7 +100,6 @@ class DefaultQueue @Inject() (
         streamConfig[T],
         creds,
         f,
-        metrics,
         logger,
       )
     )

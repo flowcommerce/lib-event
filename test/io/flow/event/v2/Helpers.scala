@@ -5,15 +5,14 @@ import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.MockConfig
-import io.flow.play.metrics.MockMetricsSystem
 import io.flow.util.IdGenerator
 import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
 import play.api.Application
 
-import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{Await, Future}
 import scala.reflect.runtime.universe._
 
 trait Helpers {
@@ -40,10 +39,9 @@ trait Helpers {
     withConfig { config =>
       val creds = new AWSCreds(config)
       val endpoints = app.injector.instanceOf[AWSEndpoints]
-      val metrics = new MockMetricsSystem()
       val rollbar = RollbarLogger.SimpleLogger
 
-      f(new DefaultQueue(config, creds, endpoints, metrics, rollbar))
+      f(new DefaultQueue(config, creds, endpoints, rollbar))
     }
   }
 

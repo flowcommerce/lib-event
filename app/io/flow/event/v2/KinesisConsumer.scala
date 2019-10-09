@@ -10,24 +10,23 @@ import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ShutdownReason, 
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
-import io.flow.play.metrics.MetricsSystem
+import kamon.Kamon
 import org.joda.time.DateTime
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
+import scala.util.{Failure, Success, Try}
 
 case class KinesisConsumer (
   config: StreamConfig,
   creds: AWSCredentialsProviderChain,
   f: Seq[Record] => Unit,
-  metrics: MetricsSystem,
   logger: RollbarLogger,
 ) extends StreamUsage {
 
   private[this] val worker = new Worker.Builder()
-    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, logger))
     .config(config.toKclConfig(creds))
     .kinesisClient(config.kinesisClient)
     .build()
@@ -73,12 +72,11 @@ case class KinesisConsumer (
 case class KinesisRecordProcessorFactory(
   config: StreamConfig,
   f: Seq[Record] => Unit,
-  metrics: MetricsSystem,
   logger: RollbarLogger,
 ) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config, f, metrics, logger)
+    KinesisRecordProcessor(config, f, logger)
   }
 
 }
@@ -92,14 +90,13 @@ object KinesisRecordProcessor {
 case class KinesisRecordProcessor[T](
   config: StreamConfig,
   f: Seq[Record] => Unit,
-  metrics: MetricsSystem,
   logger: RollbarLogger,
 ) extends IRecordProcessor {
 
   import KinesisRecordProcessor._
 
-  val streamLagMetric = metrics.registry.histogram(s"${config.streamName}.consumer.lagMillis")
-  val numRecordsMetric = metrics.registry.histogram(s"${config.streamName}.consumer.numRecords")
+  val streamLagMetric = Kamon.histogram(s"${config.streamName}.consumer.lagMillis")
+  val numRecordsMetric = Kamon.histogram(s"${config.streamName}.consumer.numRecords")
 
   private val logger_ = logger
     .withKeyValue("class", this.getClass.getName)
@@ -114,8 +111,8 @@ case class KinesisRecordProcessor[T](
   override def processRecords(input: ProcessRecordsInput): Unit = {
     logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
 
-    streamLagMetric.update(input.getMillisBehindLatest)
-    numRecordsMetric.update(input.getRecords.size)
+    streamLagMetric.withoutTags().record(input.getMillisBehindLatest)
+    numRecordsMetric.withoutTags().record(input.getRecords.size.toLong)
 
     val kinesisRecords = input.getRecords.asScala
 

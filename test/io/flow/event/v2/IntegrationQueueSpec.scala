@@ -1,8 +1,8 @@
 package io.flow.event.v2
 
 import java.util.UUID
-import java.util.concurrent.{Executors, TimeUnit}
 import java.util.concurrent.atomic.LongAdder
+import java.util.concurrent.{Executors, TimeUnit}
 
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
@@ -11,7 +11,6 @@ import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
-import io.flow.play.metrics.MockMetricsSystem
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
@@ -39,7 +38,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       val rollbar = RollbarLogger.SimpleLogger
       val endpoints = app.injector.instanceOf[AWSEndpoints]
 
-      val queue = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
+      val queue = new DefaultQueue(config, creds, endpoints, rollbar)
       val kclConfig = queue.streamConfig[TestEvent].toKclConfig(creds)
 
       kclConfig.getMaxRecords mustBe 1234

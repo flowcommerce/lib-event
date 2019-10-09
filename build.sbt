@@ -6,6 +6,8 @@ organization := "io.flow"
 
 scalaVersion in ThisBuild := "2.12.10"
 
+ThisBuild / useCoursier := false
+
 lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
@@ -16,7 +18,8 @@ lazy val root = project
       ws,
       guice,
       "io.flow" %% s"lib-akka" % "0.1.13",
-      "io.flow" %% s"lib-play-graphite-play26" % "0.1.17",
+      "io.flow" %% s"lib-play-play26" % "0.5.82",
+      "io.kamon" %% "kamon-core" % "2.0.0" % Provided,
       "com.amazonaws" % "amazon-kinesis-client" % "1.11.2",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.0",
@@ -53,4 +56,4 @@ publishTo := {
   }
 }
 
-version := "1.0.19"
+version := "1.1.0-SNAPSHOT"
