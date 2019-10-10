@@ -6,6 +6,8 @@ organization := "io.flow"
 
 scalaVersion in ThisBuild := "2.12.10"
 
+ThisBuild / useCoursier := false
+
 lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
@@ -16,12 +18,12 @@ lazy val root = project
       ws,
       guice,
       "io.flow" %% s"lib-akka" % "0.1.13",
-      "io.flow" %% s"lib-play-graphite-play26" % "0.1.13",
+      "io.flow" %% s"lib-play-graphite-play26" % "0.1.16",
       "com.amazonaws" % "amazon-kinesis-client" % "1.11.2",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
-      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.9.9",
-      "org.mockito" % "mockito-core" % "3.0.0" % Test,
-      "io.flow" %% s"lib-test-utils" % "0.0.68" % Test,
+      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.0",
+      "org.mockito" % "mockito-core" % "3.1.0" % Test,
+      "io.flow" %% s"lib-test-utils" % "0.0.71" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.2"),
       "com.github.ghik" %% "silencer-lib" % "1.4.2" % Provided,
       "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
