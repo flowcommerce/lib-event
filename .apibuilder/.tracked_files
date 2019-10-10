@@ -1,7 +1,7 @@
 ---
 flow:
   lib-event-test:
-    play_2_6_mock_client:
-    - test/generated/FlowLibEventTestV0MockClient.scala
     play_2_x_json:
     - test/generated/FlowLibEventTestV0Models.scala
+    play_2_6_mock_client:
+    - test/generated/FlowLibEventTestV0MockClient.scala
