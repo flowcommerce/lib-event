@@ -6,8 +6,6 @@ organization := "io.flow"
 
 scalaVersion in ThisBuild := "2.12.10"
 
-ThisBuild / useCoursier := false
-
 lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
