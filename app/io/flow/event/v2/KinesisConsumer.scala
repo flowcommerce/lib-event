@@ -112,7 +112,7 @@ case class KinesisRecordProcessor[T](
       .info("Initializing")
 
   override def processRecords(input: ProcessRecordsInput): Unit = {
-    logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
+    logger_.withKeyValue("count", input.getRecords.size).debug("Processing records")
 
     streamLagMetric.update(input.getMillisBehindLatest)
     numRecordsMetric.update(input.getRecords.size)
@@ -135,7 +135,7 @@ case class KinesisRecordProcessor[T](
     }
 
     kinesisRecords.lastOption.foreach { record =>
-      logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
+      logger_.withKeyValue("checkpoint", record.getSequenceNumber).debug("Checkpoint")
       handleCheckpoint(input.getCheckpointer)
     }
   }
