@@ -6,6 +6,8 @@ organization := "io.flow"
 
 scalaVersion in ThisBuild := "2.12.10"
 
+crossScalaVersions := Seq("2.12.10", "2.13.1")
+
 lazy val root = project
   .in(file("."))
   .enablePlugins(PlayScala)
@@ -22,8 +24,8 @@ lazy val root = project
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.0",
       "org.mockito" % "mockito-core" % "3.1.0" % Test,
       "io.flow" %% s"lib-test-utils" % "0.0.76" % Test,
-      compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.2"),
-      "com.github.ghik" %% "silencer-lib" % "1.4.2" % Provided,
+      compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.4" cross CrossVersion.full),
+      "com.github.ghik" %% "silencer-lib" % "1.4.4" % Provided cross CrossVersion.full,
       "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
