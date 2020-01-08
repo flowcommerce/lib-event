@@ -82,12 +82,14 @@ trait PollActorBatch extends Actor with ActorLogging {
         if (PollActorErrors.filterExceptionMessage(ex.getMessage)) {
           logger
             .fingerprint(s"${this.getClass.getName}-${streamName}-warn")
+            .withKeyValue("streamName", streamName)
             .withKeyValue("records_size", records.size)
             .warn(s"Filtered warning while processing record from stream", ex)
         } else {
           val msg = "Error while processing record from stream"
           logger
             .fingerprint(s"${this.getClass.getName}-${streamName}-error")
+            .withKeyValue("streamName", streamName)
             .withKeyValue("records_size", records.size)
             .error(msg, ex)
           throw new RuntimeException(msg, ex)
