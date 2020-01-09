@@ -116,7 +116,7 @@ case class KinesisProducer[T](
       // specific case to catch
       //   com.amazonaws.SdkClientException: Unable to execute HTTP request: The target server failed to respond
       //   Caused by: org.apache.http.NoHttpResponseException: The target server failed to respond
-      case Failure(ex @ (_ : SdkClientException)) if ex.getCause.isInstanceOf[NoHttpResponseException] && attempts <= MaxRetries =>
+      case Failure(ex @ (_ : SdkClientException)) if Option(ex.getCause).exists(_.isInstanceOf[NoHttpResponseException]) && attempts <= MaxRetries =>
         attemptRetry(attempts, entries, ex)
 
       case Failure(ex) => throw ex
