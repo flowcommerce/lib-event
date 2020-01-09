@@ -6,6 +6,7 @@ import java.util
 import com.amazonaws.services.kinesis.model._
 import com.github.ghik.silencer.silent
 import io.flow.log.RollbarLogger
+import org.apache.http.NoHttpResponseException
 import play.api.libs.json.{Json, Writes}
 
 import scala.annotation.tailrec
@@ -108,7 +109,7 @@ case class KinesisProducer[T](
           }
         }
 
-      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
+      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException | _ : NoHttpResponseException)) if attempts <= MaxRetries =>
         logger_.info(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
         waitBeforeRetry()
         publishBatchRetries(entries, attempts + 1)
