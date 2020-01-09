@@ -99,7 +99,7 @@ case class DefaultStreamConfig(
           .withMaxConsecutiveRetriesBeforeThrottling(1)
           .withThrottledRetries(true)
           .withConnectionTTL(600000)
-          .withValidateAfterInactivityMillis(-1)
+          .withConnectionMaxIdleMillis(30000)
       )
 
     endpoints.kinesis.foreach { ep =>
