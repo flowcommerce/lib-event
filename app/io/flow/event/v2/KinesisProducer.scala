@@ -3,9 +3,11 @@ package io.flow.event.v2
 import java.nio.ByteBuffer
 import java.util
 
+import com.amazonaws.SdkClientException
 import com.amazonaws.services.kinesis.model._
 import com.github.ghik.silencer.silent
 import io.flow.log.RollbarLogger
+import org.apache.http.NoHttpResponseException
 import play.api.libs.json.{Json, Writes}
 
 import scala.annotation.tailrec
@@ -109,9 +111,13 @@ case class KinesisProducer[T](
         }
 
       case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
-        logger_.info(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
-        waitBeforeRetry()
-        publishBatchRetries(entries, attempts + 1)
+        attemptRetry(attempts, entries, ex)
+
+      // specific case to catch
+      //   com.amazonaws.SdkClientException: Unable to execute HTTP request: The target server failed to respond
+      //   Caused by: org.apache.http.NoHttpResponseException: The target server failed to respond
+      case Failure(ex @ (_ : SdkClientException)) if Option(ex.getCause).exists(_.isInstanceOf[NoHttpResponseException]) && attempts <= MaxRetries =>
+        attemptRetry(attempts, entries, ex)
 
       case Failure(ex) => throw ex
     }
@@ -119,6 +125,16 @@ case class KinesisProducer[T](
 
   // uniform 1s to 5s
   private def waitBeforeRetry(): Unit = Thread.sleep(1000L + Random.nextInt(4000).toLong)
+
+  private def attemptRetry(
+    attempts: Int,
+    entries: util.List[PutRecordsRequestEntry],
+    ex: Throwable
+  ): Unit = {
+    logger_.info(s"[FlowKinesisWarn] Exception thrown when publishing batch. Retrying $attempts/$MaxRetries ...", ex)
+    waitBeforeRetry()
+    publishBatchRetries(entries, attempts + 1)
+  }
 
   private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
     val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
