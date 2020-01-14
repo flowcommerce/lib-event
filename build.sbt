@@ -24,7 +24,7 @@ lazy val root = project
       "io.flow" %% s"lib-test-utils" % "0.0.78" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.2"),
       "com.github.ghik" %% "silencer-lib" % "1.4.2" % Provided,
-      "cloud.localstack" % "localstack-utils" % "0.2.0" % Test,
+      "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
