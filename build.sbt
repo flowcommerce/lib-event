@@ -16,7 +16,7 @@ lazy val root = project
       ws,
       guice,
       "io.flow" %% s"lib-akka" % "0.1.13",
-      "io.flow" %% s"lib-play-graphite-play26" % "0.1.30",
+      "io.flow" %% s"lib-play-graphite-play26" % "0.1.31",
       "com.amazonaws" % "amazon-kinesis-client" % "1.11.2",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.2",
