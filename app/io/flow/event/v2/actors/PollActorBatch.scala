@@ -61,13 +61,15 @@ trait PollActorBatch extends Actor with ActorLogging {
 
     queue.consume[T](
       pollTime = pollTime,
-      f = processWithErrorHandler
+      f = processWithErrorHandler[T]
     )
   }
 
   override def receive: Receive = SafeReceive(PartialFunction.empty)
 
-  private def processWithErrorHandler(records: Seq[Record]): Unit = {
+  private def processWithErrorHandler[T: TypeTag](records: Seq[Record]): Unit = {
+    val streamName = queue.streamName[T]
+
     Try {
       val transformedRecords = transform(records.filter(accepts))
       if (transformedRecords.nonEmpty)
@@ -75,19 +77,21 @@ trait PollActorBatch extends Actor with ActorLogging {
     } match {
       case Success(_) => // no-op
       case Failure(ex) => {
-        ex.printStackTrace(System.err)
-
         // explicitly catch and only warn on duplicate key value constraint errors on partitioned tables
         // which is a work around to on conflict not working for child partition tables
         if (PollActorErrors.filterExceptionMessage(ex.getMessage)) {
           logger
-            .withKeyValue("class", this.getClass.getName)
-            .warn(s"FlowEventWarning Error processing record: ${ex.getMessage}")
+            .fingerprint(s"${this.getClass.getName}-${streamName}-warn")
+            .withKeyValue("streamName", streamName)
+            .withKeyValue("records_size", records.size)
+            .warn(s"Filtered warning while processing record from stream", ex)
         } else {
-          val msg = s"FlowEventError Error processing record: ${ex.getMessage}"
+          val msg = "Error while processing record from stream"
           logger
-            .withKeyValue("class", this.getClass.getName)
-            .error(msg)
+            .fingerprint(s"${this.getClass.getName}-${streamName}-error")
+            .withKeyValue("streamName", streamName)
+            .withKeyValue("records_size", records.size)
+            .error(msg, ex)
           throw new RuntimeException(msg, ex)
         }
       }
