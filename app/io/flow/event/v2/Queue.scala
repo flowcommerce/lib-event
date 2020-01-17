@@ -75,7 +75,7 @@ class DefaultQueue @Inject() (
   logger: RollbarLogger,
 ) extends Queue with StreamUsage {
 
-  import scala.collection.JavaConverters._
+  import scala.jdk.CollectionConverters._
 
   private[this] val consumers = new ConcurrentLinkedQueue[KinesisConsumer]()
 

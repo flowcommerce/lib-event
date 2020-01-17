@@ -11,7 +11,7 @@ import org.apache.http.NoHttpResponseException
 import play.api.libs.json.{Json, Writes}
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable.ListBuffer
 import scala.util.control.NonFatal
 import scala.util.{Failure, Random, Success, Try}

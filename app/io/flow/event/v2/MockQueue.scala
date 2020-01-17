@@ -10,7 +10,7 @@ import javax.inject.{Inject, Singleton}
 import org.joda.time.DateTime
 import play.api.libs.json.{JsValue, Writes}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 import scala.reflect.runtime.universe._
 
