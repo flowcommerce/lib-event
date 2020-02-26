@@ -3,7 +3,6 @@ package io.flow.event.v2
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue, Executors}
 
-import com.github.ghik.silencer.silent
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import javax.inject.{Inject, Singleton}
@@ -53,7 +52,7 @@ class MockQueue @Inject()(
     *                 and cannot be verified in the mock per stream to minimize
     *                 resource usage in tests
     */
-  @silent override def consume[T: TypeTag](
+  override def consume[T: TypeTag](
     f: Seq[Record] => Unit,
     pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   ): Unit = {
