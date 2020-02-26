@@ -14,7 +14,7 @@ import io.flow.play.metrics.MetricsSystem
 import org.joda.time.DateTime
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
@@ -131,7 +131,7 @@ case class KinesisRecordProcessor[T](
         )
       }
       val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
-      executeRetry(flowRecords, sequenceNumbers)
+      executeRetry(flowRecords.toSeq, sequenceNumbers.toSeq)
     }
 
     kinesisRecords.lastOption.foreach { record =>

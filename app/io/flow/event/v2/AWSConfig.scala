@@ -6,7 +6,7 @@ import io.flow.play.util.Config
 import javax.inject.Inject
 import play.api.{Environment, Mode}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 class AWSCreds @Inject() (config: Config) extends AWSCredentialsProviderChain(
 

@@ -1,10 +1,10 @@
 import sbt.Keys.scalacOptions
 
-name := "lib-event-play26"
+name := "lib-event-play28"
 
 organization := "io.flow"
 
-scalaVersion in ThisBuild := "2.12.10"
+scalaVersion := "2.13.1"
 
 lazy val root = project
   .in(file("."))
@@ -15,15 +15,15 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% s"lib-akka" % "0.1.14",
-      "io.flow" %% s"lib-play-graphite-play26" % "0.1.36",
+      "io.flow" %% "lib-akka-akka26" % "0.1.14",
+      "io.flow" %% "lib-play-graphite-play28" % "0.1.36",
       "com.amazonaws" % "amazon-kinesis-client" % "1.13.2",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.2",
       "org.mockito" % "mockito-core" % "3.2.4" % Test,
-      "io.flow" %% s"lib-test-utils" % "0.0.81" % Test,
-      compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.2"),
-      "com.github.ghik" %% "silencer-lib" % "1.4.2" % Provided,
+      "io.flow" %% "lib-test-utils-play28" % "0.0.79" % Test,
+      compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.4.4" cross CrossVersion.full),
+      "com.github.ghik" %% "silencer-lib" % "1.4.4" % Provided cross CrossVersion.full,
       "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",

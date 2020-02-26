@@ -7,7 +7,7 @@ import cloud.localstack.docker.annotation.LocalstackDockerConfiguration
 import org.scalatest.{BeforeAndAfterAll, Suite}
 import sys.process._
 import scala.language.postfixOps
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
   val localstackDocker = LocalstackDocker.INSTANCE

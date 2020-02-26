@@ -7,7 +7,7 @@ import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
-import org.scalatest.mockito.MockitoSugar
+import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application

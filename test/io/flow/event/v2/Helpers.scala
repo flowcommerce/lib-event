@@ -82,7 +82,7 @@ trait Helpers {
 
     q.shutdown
 
-    all
+    all.toSeq
   }
 }
 
