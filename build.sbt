@@ -21,7 +21,7 @@ lazy val root = project
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.3",
       "org.mockito" % "mockito-core" % "3.3.3" % Test,
-      "io.flow" %% "lib-test-utils-play28" % "0.0.87" % Test,
+      "io.flow" %% "lib-test-utils-play28" % "0.0.89" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.6.0" cross CrossVersion.full),
       "com.github.ghik" %% "silencer-lib" % "1.6.0" % Provided cross CrossVersion.full,
       "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
