@@ -15,7 +15,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-akka-akka26" % "0.1.17",
+      "io.flow" %% "lib-akka-akka26" % "0.1.18",
       "io.flow" %% "lib-play-graphite-play28" % "0.1.45",
       "com.amazonaws" % "amazon-kinesis-client" % "1.13.3",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
