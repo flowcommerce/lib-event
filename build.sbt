@@ -15,7 +15,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-akka-akka26" % "0.1.17",
+      "io.flow" %% "lib-akka-akka26" % "0.1.18",
       "io.flow" %% "lib-play-graphite-play28" % "0.1.45",
       "com.amazonaws" % "amazon-kinesis-client" % "1.13.3",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
@@ -24,7 +24,7 @@ lazy val root = project
       "io.flow" %% "lib-test-utils-play28" % "0.0.92" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.6.0" cross CrossVersion.full),
       "com.github.ghik" %% "silencer-lib" % "1.6.0" % Provided cross CrossVersion.full,
-      "cloud.localstack" % "localstack-utils" % "0.1.22" % Test,
+      "cloud.localstack" % "localstack-utils" % "0.2.1" % Test,
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
