@@ -8,6 +8,7 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorC
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ShutdownReason, Worker}
 import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
+import com.codahale.metrics.Histogram
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
@@ -78,7 +79,7 @@ case class KinesisRecordProcessorFactory(
 ) extends IRecordProcessorFactory {
 
   override def createProcessor(): IRecordProcessor = {
-    KinesisRecordProcessor(config, f, metrics, logger)
+    new DefaultKinesisRecordProcessor(config, f, metrics, logger)
   }
 
 }
@@ -89,7 +90,7 @@ object KinesisRecordProcessor {
   private val BackoffTimeInMillis = 3000L
 }
 
-case class KinesisRecordProcessor[T](
+abstract class KinesisRecordProcessor(
   config: StreamConfig,
   f: Seq[Record] => Unit,
   metrics: MetricsSystem,
@@ -98,10 +99,10 @@ case class KinesisRecordProcessor[T](
 
   import KinesisRecordProcessor._
 
-  val streamLagMetric = metrics.registry.histogram(s"${config.streamName}.consumer.lagMillis")
-  val numRecordsMetric = metrics.registry.histogram(s"${config.streamName}.consumer.numRecords")
+  val streamLagMetric: Histogram = metrics.registry.histogram(s"${config.streamName}.consumer.lagMillis")
+  val numRecordsMetric: Histogram = metrics.registry.histogram(s"${config.streamName}.consumer.numRecords")
 
-  private val logger_ = logger
+  protected val logger_ : RollbarLogger = logger
     .withKeyValue("class", this.getClass.getName)
     .withKeyValue("stream", config.streamName)
     .withKeyValue("worker_id", config.workerId)
@@ -111,37 +112,17 @@ case class KinesisRecordProcessor[T](
       .withKeyValue("shard_id", input.getShardId)
       .info("Initializing")
 
-  override def processRecords(input: ProcessRecordsInput): Unit = {
-    logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
+  override def processRecords(input: ProcessRecordsInput): Unit
 
-    streamLagMetric.update(input.getMillisBehindLatest)
-    numRecordsMetric.update(input.getRecords.size)
-
-    val kinesisRecords = input.getRecords.asScala
-
-    if (kinesisRecords.nonEmpty) {
-      val flowRecords = kinesisRecords.map { record =>
-        val buffer = record.getData
-        val bytes = Array.fill[Byte](buffer.remaining)(0)
-        buffer.get(bytes)
-
-        Record.fromByteArray(
-          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
-          value = bytes
-        )
-      }
-      val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
-      executeRetry(flowRecords.toSeq, sequenceNumbers.toSeq)
-    }
-
-    kinesisRecords.lastOption.foreach { record =>
-      logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
+  override def shutdown(input: ShutdownInput): Unit = {
+    logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
+    if (input.getShutdownReason == ShutdownReason.TERMINATE) {
       handleCheckpoint(input.getCheckpointer)
     }
   }
 
   @tailrec
-  private def executeRetry(records: Seq[Record], sequenceNumbers: Seq[String], retries: Int = 0): Unit = {
+  protected final def executeRetry(records: Seq[Record], sequenceNumbers: Seq[String], retries: Int = 0): Unit = {
     Try(f(records)) match {
       case Success(_) =>
       case Failure(NonFatal(e)) =>
@@ -162,14 +143,8 @@ case class KinesisRecordProcessor[T](
     }
   }
 
-  override def shutdown(input: ShutdownInput): Unit = {
-    logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
-    if (input.getShutdownReason == ShutdownReason.TERMINATE) {
-      handleCheckpoint(input.getCheckpointer)
-    }
-  }
-
-  private def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, retries: Int = 0): Unit = {
+  @tailrec
+  protected final def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, retries: Int = 0): Unit = {
 
     import KinesisRecordProcessor._
     try {
@@ -196,5 +171,40 @@ case class KinesisRecordProcessor[T](
         logger_.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
     }
   }
+}
 
+class DefaultKinesisRecordProcessor(
+  config: StreamConfig,
+  f: Seq[Record] => Unit,
+  metrics: MetricsSystem,
+  logger: RollbarLogger,
+) extends KinesisRecordProcessor(config, f, metrics, logger) {
+
+  override def processRecords(input: ProcessRecordsInput): Unit = {
+    logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
+
+    streamLagMetric.update(input.getMillisBehindLatest)
+    numRecordsMetric.update(input.getRecords.size)
+
+    val kinesisRecords = input.getRecords.asScala.toSeq
+    val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
+    if (kinesisRecords.nonEmpty) {
+      val flowRecords = kinesisRecords.map { record =>
+        val buffer = record.getData
+        val bytes = Array.fill[Byte](buffer.remaining)(0)
+        buffer.get(bytes)
+
+        Record.fromByteArray(
+          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+          value = bytes
+        )
+      }
+      executeRetry(flowRecords, sequenceNumbers)
+    }
+
+    kinesisRecords.lastOption.foreach { record =>
+      logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
+      handleCheckpoint(input.getCheckpointer)
+    }
+  }
 }
