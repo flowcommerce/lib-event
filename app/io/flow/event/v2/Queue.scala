@@ -98,7 +98,7 @@ class DefaultQueue @Inject() (
   ): Unit = {
     markConsumesStream(streamName[T], typeOf[T])
     consumers.add(
-      KinesisConsumer(
+      DefaultKinesisConsumer(
         streamConfig[T],
         creds,
         f,
