@@ -19,19 +19,11 @@ import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
-case class KinesisConsumer (
+abstract class KinesisConsumer (
   config: StreamConfig,
-  creds: AWSCredentialsProviderChain,
-  f: Seq[Record] => Unit,
-  metrics: MetricsSystem,
   logger: RollbarLogger,
+  worker: Worker
 ) extends StreamUsage {
-
-  private[this] val worker = new Worker.Builder()
-    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
-    .config(config.toKclConfig(creds))
-    .kinesisClient(config.kinesisClient)
-    .build()
 
   private[this] val exec = Executors.newSingleThreadExecutor()
 
@@ -65,11 +57,24 @@ case class KinesisConsumer (
       logger_.info("Worker executor terminated")
     else
       logger_.warn("Worker executor termination timed out")
-
-    ()
   }
-
 }
+
+case class DefaultKinesisConsumer(
+  config: StreamConfig,
+  creds: AWSCredentialsProviderChain,
+  f: Seq[Record] => Unit,
+  metrics: MetricsSystem,
+  logger: RollbarLogger,
+) extends KinesisConsumer(
+  config = config,
+  logger = logger,
+  worker = new Worker.Builder()
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
+    .config(config.toKclConfig(creds))
+    .kinesisClient(config.kinesisClient)
+    .build()
+)
 
 case class KinesisRecordProcessorFactory(
   config: StreamConfig,
@@ -81,7 +86,6 @@ case class KinesisRecordProcessorFactory(
   override def createProcessor(): IRecordProcessor = {
     new DefaultKinesisRecordProcessor(config, f, metrics, logger)
   }
-
 }
 
 object KinesisRecordProcessor {
