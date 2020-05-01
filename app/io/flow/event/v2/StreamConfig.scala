@@ -6,6 +6,8 @@ import java.util.UUID
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
+import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient
+import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBStreamsClientBuilder}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
@@ -107,5 +109,53 @@ case class DefaultStreamConfig(
 
     kclb.build
   }
-
 }
+
+case class DynamoStreamConfig(
+  override val appName: String,
+  override val streamName: String,
+  override val dynamoTableName: String,
+  override val maxRecords: Option[Int],
+  override val idleMillisBetweenCalls: Option[Long],
+  override val idleTimeBetweenReadsInMillis: Option[Long],
+  override val maxLeasesForWorker: Option[Int],
+  override val maxLeasesToStealAtOneTime: Option[Int],
+  override val eventClass: Type,
+  override val endpoints: AWSEndpoints,
+  dynamoDBClient: AmazonDynamoDB
+) extends StreamConfig {
+
+  override def toKclConfig(creds: AWSCredentialsProviderChain): KinesisClientLibConfiguration = {
+    val dynamoCapacity = {
+      FlowEnvironment.Current match {
+        case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
+        case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
+      }
+    }
+
+    val kclConf = new KinesisClientLibConfiguration(appName, streamName, creds, workerId)
+      .withInitialLeaseTableReadCapacity(dynamoCapacity)
+      .withInitialLeaseTableWriteCapacity(dynamoCapacity)
+      .withInitialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+      .withCleanupLeasesUponShardCompletion(true)
+      .withIdleMillisBetweenCalls(idleMillisBetweenCalls.getOrElse(1500L))
+      .withIdleTimeBetweenReadsInMillis(idleTimeBetweenReadsInMillis.getOrElse(KinesisClientLibConfiguration.DEFAULT_IDLETIME_BETWEEN_READS_MILLIS))
+      .withMaxRecords(maxRecords.getOrElse(1000))
+      .withMaxLeasesForWorker(maxLeasesForWorker.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_FOR_WORKER))
+      .withMaxLeasesToStealAtOneTime(maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
+      .withMetricsLevel(MetricsLevel.NONE)
+      .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
+
+    endpoints.kinesis.foreach(kclConf.withKinesisEndpoint)
+    endpoints.dynamodb.foreach(kclConf.withDynamoDBEndpoint)
+    kclConf
+  }
+
+  override def kinesisClient: AmazonDynamoDBStreamsAdapterClient = {
+    val dynamoDBStreamsClient = AmazonDynamoDBStreamsClientBuilder.defaultClient()
+    val adapterClient = new AmazonDynamoDBStreamsAdapterClient(dynamoDBStreamsClient)
+    endpoints.kinesis.foreach(adapterClient.setEndpoint)
+    adapterClient
+  }
+}
+
