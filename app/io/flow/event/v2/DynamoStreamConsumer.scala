@@ -6,7 +6,7 @@ import com.amazonaws.services.dynamodbv2.streamsadapter.StreamsWorkerFactory
 import com.amazonaws.services.dynamodbv2.streamsadapter.model.RecordAdapter
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
 import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput
-import io.flow.event.Record
+import io.flow.event.{DynamoStreamRecord, Record}
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
 

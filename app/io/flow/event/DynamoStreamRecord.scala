@@ -1,7 +1,6 @@
-package io.flow.event.v2
+package io.flow.event
 
 import com.amazonaws.services.dynamodbv2.model.AttributeValue
-import io.flow.event.Record
 import org.joda.time.DateTime
 import play.api.libs.json.{JsNull, JsValue}
 
