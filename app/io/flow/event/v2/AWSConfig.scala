@@ -40,6 +40,16 @@ class AWSEndpoints @Inject() (environment: Environment) {
     case _ => None
   }
 
+  val dynamodbStreams = environment.mode match {
+    case Mode.Test => Some("http://localhost:4570") // localstack
+    case _ => None
+  }
+
+  val cloudWatch = environment.mode match {
+    case Mode.Test => Some("http://localhost:4582") // localstack
+    case _ => None
+  }
+
   environment.mode match {
     case Mode.Test =>
       // CBOR is a replacement for JSON. It is not yet supported by localstack
