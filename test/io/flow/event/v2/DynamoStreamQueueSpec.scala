@@ -6,7 +6,6 @@ import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
 import io.flow.play.clients.ConfigModule
-import org.scalatest.BeforeAndAfterAll
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
@@ -16,22 +15,17 @@ import scala.reflect.runtime.universe._
 
 class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
   with DynamoStreamHelpers
-  with KinesisIntegrationSpec
-  with BeforeAndAfterAll {
+  with KinesisIntegrationSpec {
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()
       .bindings(new ConfigModule)
       .build()
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    initTable()
-  }
-
   "default dynamo queue prevents publishing" in {
     withIntegrationQueue { q =>
       a [RuntimeException] must be thrownBy q.producer[TestObjectUpserted]()
+      ()
     }
   }
 
@@ -50,9 +44,9 @@ class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
   }
 
   "can consume an event" in {
-    withIntegrationQueue { q =>
+    withIntegrationQueue[TestObject] { q =>
       val testObject = Factories.makeTestObject()
-      val eventId = publishTestObject(testObject)
+      val eventId = publishTestObject(q, testObject)
       println(s"Published object[$eventId]. Waiting for consumer")
 
       val fetched = consume[TestObject](q, eventId)

@@ -60,7 +60,7 @@ class DefaultDynamoStreamQueue @Inject() (
   override def shutdown(): Unit = shutdownConsumers()
 
   private[v2] def streamConfig[T: TypeTag] = {
-    val tableName = s"${FlowEnvironment.Current}.${typeName[T]}s"
+    val tn = tableName[T]
 
     //fixme move
     val dynamoDBClientBuilder = AmazonDynamoDBClientBuilder.standard()
@@ -69,23 +69,24 @@ class DefaultDynamoStreamQueue @Inject() (
     }
     val dynamoDBClient = dynamoDBClientBuilder.build()
 
-    val streamName = dynamoDBClient.describeTable(tableName).getTable.getLatestStreamArn
+    val streamName = dynamoDBClient.describeTable(tn).getTable.getLatestStreamArn
 
     DynamoStreamConfig(
       appName = appName,
       streamName = streamName,
-      dynamoTableName = tableName,
+      dynamoTableName = tn,
       eventClass = typeOf[T],
-      maxRecords = config.optionalInt(s"$tableName.maxRecords"),
-      idleMillisBetweenCalls = config.optionalLong(s"$tableName.idleMillisBetweenCalls"),
-      idleTimeBetweenReadsInMillis = config.optionalLong(s"$tableName.idleTimeBetweenReadsMs"),
-      maxLeasesForWorker = config.optionalInt(s"$tableName.maxLeasesForWorker"),
-      maxLeasesToStealAtOneTime = config.optionalInt(s"$tableName.maxLeasesToStealAtOneTime"),
+      maxRecords = config.optionalInt(s"$tn.maxRecords"),
+      idleMillisBetweenCalls = config.optionalLong(s"$tn.idleMillisBetweenCalls"),
+      idleTimeBetweenReadsInMillis = config.optionalLong(s"$tn.idleTimeBetweenReadsMs"),
+      maxLeasesForWorker = config.optionalInt(s"$tn.maxLeasesForWorker"),
+      maxLeasesToStealAtOneTime = config.optionalInt(s"$tn.maxLeasesToStealAtOneTime"),
       endpoints = endpoints,
       dynamoDBClient = dynamoDBClient
     )
   }
 
+  private[v2] def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${typeName[T]}s"
   private def typeName[T: TypeTag] = typeOf[T].typeSymbol.name.toString.toLowerCase
 }
 

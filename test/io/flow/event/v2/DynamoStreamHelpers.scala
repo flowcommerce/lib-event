@@ -33,9 +33,7 @@ trait DynamoStreamHelpers {
       .build()
   }
 
-  val tableName = "development.testobjects"// fixme get from config
-
-  def initTable(): Unit = {
+  private def initTable(tableName: String): Unit = {
     val primaryKey = "id"
     val attributeDefinitions: Seq[AttributeDefinition] = Seq(new AttributeDefinition(primaryKey, ScalarAttributeType.S))
     val keySchemaElements: Seq[KeySchemaElement] = Seq(new KeySchemaElement(primaryKey, KeyType.HASH))
@@ -64,20 +62,22 @@ trait DynamoStreamHelpers {
     f(new MockDynamoStreamQueue(rollbar))
   }
 
-  def withIntegrationQueue[T](f: DynamoStreamQueue => T)(implicit app: Application): T = {
+  def withIntegrationQueue[T: TypeTag](f: DefaultDynamoStreamQueue => Unit)(implicit app: Application): Unit = {
     withConfig { config =>
       val creds = new AWSCreds(config)
       val endpoints = app.injector.instanceOf[AWSEndpoints]
       val metrics = new MockMetricsSystem()
       val rollbar = RollbarLogger.SimpleLogger
-
-      f(new DefaultDynamoStreamQueue(config, creds, endpoints, metrics, rollbar))
+      val q = new DefaultDynamoStreamQueue(config, creds, endpoints, metrics, rollbar)
+      initTable(q.tableName[T])
+      f(q)
     }
   }
 
-  def publishTestObject(obj: TestObject): String = {
+  def publishTestObject(q: DefaultDynamoStreamQueue, obj: TestObject): String = {
+    val stream = q.streamConfig[TestObject]
     val item = Map("id" -> new AttributeValue().withS(obj.id)).asJava
-    dynamoDBClient.putItem(tableName, item)
+    stream.dynamoDBClient.putItem(stream.dynamoTableName, item)
     publishCount.incrementAndGet().toString
   }
 
