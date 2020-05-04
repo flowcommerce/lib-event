@@ -114,7 +114,6 @@ case class DefaultStreamConfig(
 
 case class DynamoStreamConfig(
   override val appName: String,
-  override val streamName: String,
   override val dynamoTableName: String,
   override val maxRecords: Option[Int],
   override val idleMillisBetweenCalls: Option[Long],
@@ -125,6 +124,8 @@ case class DynamoStreamConfig(
   override val endpoints: AWSEndpoints,
   dynamoDBClient: AmazonDynamoDB
 ) extends StreamConfig {
+
+  override def streamName: String = dynamoDBClient.describeTable(dynamoTableName).getTable.getLatestStreamArn
 
   override def toKclConfig(creds: AWSCredentialsProviderChain): KinesisClientLibConfiguration = {
     val dynamoCapacity = {

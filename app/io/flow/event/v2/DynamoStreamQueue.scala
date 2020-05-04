@@ -69,11 +69,8 @@ class DefaultDynamoStreamQueue @Inject() (
     }
     val dynamoDBClient = dynamoDBClientBuilder.build()
 
-    val streamName = dynamoDBClient.describeTable(tn).getTable.getLatestStreamArn
-
     DynamoStreamConfig(
       appName = appName,
-      streamName = streamName,
       dynamoTableName = tn,
       eventClass = typeOf[T],
       maxRecords = config.optionalInt(s"$tn.maxRecords"),
