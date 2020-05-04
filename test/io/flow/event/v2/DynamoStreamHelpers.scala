@@ -2,8 +2,6 @@ package io.flow.event.v2
 
 import java.util.concurrent.atomic.AtomicInteger
 
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.model._
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.json._
@@ -25,15 +23,7 @@ trait DynamoStreamHelpers {
   private def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
   private val publishCount = new AtomicInteger()
 
-  //fixme setup in config
-  lazy val dynamoDBClient = {
-    AmazonDynamoDBClientBuilder
-      .standard()
-      .withEndpointConfiguration(new EndpointConfiguration("http://localhost:4569", "us-east-1"))
-      .build()
-  }
-
-  private def initTable(tableName: String): Unit = {
+  private def initTable(stream: DynamoStreamConfig): Unit = {
     val primaryKey = "id"
     val attributeDefinitions: Seq[AttributeDefinition] = Seq(new AttributeDefinition(primaryKey, ScalarAttributeType.S))
     val keySchemaElements: Seq[KeySchemaElement] = Seq(new KeySchemaElement(primaryKey, KeyType.HASH))
@@ -42,12 +32,12 @@ trait DynamoStreamHelpers {
       .withStreamEnabled(true)
       .withStreamViewType(StreamViewType.NEW_AND_OLD_IMAGES)
     val request = new CreateTableRequest()
-      .withTableName(tableName)
+      .withTableName(stream.dynamoTableName)
       .withAttributeDefinitions(attributeDefinitions: _*)
       .withKeySchema(keySchemaElements: _*)
       .withProvisionedThroughput(provisionedThroughput)
       .withStreamSpecification(streamSpecification)
-    dynamoDBClient.createTable(request)
+    stream.dynamoDBClient.createTable(request)
     ()
   }
 
@@ -69,7 +59,7 @@ trait DynamoStreamHelpers {
       val metrics = new MockMetricsSystem()
       val rollbar = RollbarLogger.SimpleLogger
       val q = new DefaultDynamoStreamQueue(config, creds, endpoints, metrics, rollbar)
-      initTable(q.tableName[T])
+      initTable(q.streamConfig[T])
       f(q)
     }
   }

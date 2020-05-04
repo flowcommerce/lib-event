@@ -83,7 +83,7 @@ class DefaultDynamoStreamQueue @Inject() (
     )
   }
 
-  private[v2] def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${typeName[T]}s"
+  private def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${typeName[T]}s"
   private def typeName[T: TypeTag] = typeOf[T].typeSymbol.name.toString.toLowerCase
 }
 
