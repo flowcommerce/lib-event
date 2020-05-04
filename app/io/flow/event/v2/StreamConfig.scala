@@ -8,7 +8,7 @@ import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.cloudwatch.{AmazonCloudWatch, AmazonCloudWatchClientBuilder}
 import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient
-import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBStreamsClientBuilder}
+import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClientBuilder, AmazonDynamoDBStreamsClientBuilder}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
 import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
@@ -121,8 +121,7 @@ case class DynamoStreamConfig(
   override val maxLeasesForWorker: Option[Int],
   override val maxLeasesToStealAtOneTime: Option[Int],
   override val eventClass: Type,
-  override val endpoints: AWSEndpoints,
-  dynamoDBClient: AmazonDynamoDB
+  override val endpoints: AWSEndpoints
 ) extends StreamConfig {
 
   override def streamName: String = dynamoDBClient.describeTable(dynamoTableName).getTable.getLatestStreamArn
@@ -161,7 +160,15 @@ case class DynamoStreamConfig(
     new AmazonDynamoDBStreamsAdapterClient(builder.build)
   }
 
-  def cloudWatchClient: AmazonCloudWatch = {
+  val dynamoDBClient: AmazonDynamoDB = {
+    val builder = AmazonDynamoDBClientBuilder.standard()
+    endpoints.dynamodb.foreach {
+      ep => builder.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    }
+    builder.build()
+  }
+
+  val cloudWatchClient: AmazonCloudWatch = {
     val builder = AmazonCloudWatchClientBuilder.standard()
     endpoints.cloudWatch.foreach { ep =>
       builder.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))

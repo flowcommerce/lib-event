@@ -2,8 +2,6 @@ package io.flow.event.v2
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
@@ -61,14 +59,6 @@ class DefaultDynamoStreamQueue @Inject() (
 
   private[v2] def streamConfig[T: TypeTag] = {
     val tn = tableName[T]
-
-    //fixme move
-    val dynamoDBClientBuilder = AmazonDynamoDBClientBuilder.standard()
-    endpoints.dynamodb.foreach {
-      ep => dynamoDBClientBuilder.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
-    }
-    val dynamoDBClient = dynamoDBClientBuilder.build()
-
     DynamoStreamConfig(
       appName = appName,
       dynamoTableName = tn,
@@ -78,8 +68,7 @@ class DefaultDynamoStreamQueue @Inject() (
       idleTimeBetweenReadsInMillis = config.optionalLong(s"$tn.idleTimeBetweenReadsMs"),
       maxLeasesForWorker = config.optionalInt(s"$tn.maxLeasesForWorker"),
       maxLeasesToStealAtOneTime = config.optionalInt(s"$tn.maxLeasesToStealAtOneTime"),
-      endpoints = endpoints,
-      dynamoDBClient = dynamoDBClient
+      endpoints = endpoints
     )
   }
 
