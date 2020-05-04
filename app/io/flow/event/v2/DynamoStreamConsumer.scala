@@ -1,7 +1,6 @@
 package io.flow.event.v2
 
 import com.amazonaws.auth.AWSCredentialsProviderChain
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder
 import com.amazonaws.services.dynamodbv2.streamsadapter.StreamsWorkerFactory
 import com.amazonaws.services.dynamodbv2.streamsadapter.model.RecordAdapter
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
@@ -31,7 +30,7 @@ case class DynamoStreamConsumer(
     config.toKclConfig(creds),
     config.kinesisClient,
     config.dynamoDBClient,
-    AmazonCloudWatchClientBuilder.defaultClient()
+    config.cloudWatchClient
   )
 )
 

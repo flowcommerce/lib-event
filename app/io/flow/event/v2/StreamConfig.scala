@@ -6,6 +6,7 @@ import java.util.UUID
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
+import com.amazonaws.services.cloudwatch.{AmazonCloudWatch, AmazonCloudWatchClientBuilder}
 import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient
 import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBStreamsClientBuilder}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
@@ -152,10 +153,19 @@ case class DynamoStreamConfig(
   }
 
   override def kinesisClient: AmazonDynamoDBStreamsAdapterClient = {
-    val dynamoDBStreamsClient = AmazonDynamoDBStreamsClientBuilder.defaultClient()
-    val adapterClient = new AmazonDynamoDBStreamsAdapterClient(dynamoDBStreamsClient)
-    endpoints.kinesis.foreach(adapterClient.setEndpoint)
-    adapterClient
+    val builder = AmazonDynamoDBStreamsClientBuilder.standard()
+    endpoints.dynamodbStreams.foreach { ep =>
+      builder.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    }
+    new AmazonDynamoDBStreamsAdapterClient(builder.build)
+  }
+
+  def cloudWatchClient: AmazonCloudWatch = {
+    val builder = AmazonCloudWatchClientBuilder.standard()
+    endpoints.cloudWatch.foreach { ep =>
+      builder.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    }
+    builder.build()
   }
 }
 
