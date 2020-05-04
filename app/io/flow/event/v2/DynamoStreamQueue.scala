@@ -2,8 +2,8 @@ package io.flow.event.v2
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
-import com.amazonaws.services.dynamodbv2.document.DynamoDB
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
@@ -59,13 +59,18 @@ class DefaultDynamoStreamQueue @Inject() (
 
   override def shutdown(): Unit = shutdownConsumers()
 
-  private def streamConfig[T: TypeTag] = {
-    val appName = config.requiredString("name")
+  private[v2] def streamConfig[T: TypeTag] = {
     val tableName = s"${FlowEnvironment.Current}.${typeName[T]}s"
-    val dynamoDBClient = AmazonDynamoDBClientBuilder.defaultClient()
-    val dynamoDb = new DynamoDB(dynamoDBClient)
-    val table = dynamoDb.getTable(tableName)
-    val streamName = Option(table.getDescription).getOrElse(table.describe()).getLatestStreamArn
+
+    //fixme move
+    val dynamoDBClientBuilder = AmazonDynamoDBClientBuilder.standard()
+    endpoints.dynamodb.foreach {
+      ep => dynamoDBClientBuilder.withEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
+    }
+    val dynamoDBClient = dynamoDBClientBuilder.build()
+
+    val streamName = dynamoDBClient.describeTable(tableName).getTable.getLatestStreamArn
+
     DynamoStreamConfig(
       appName = appName,
       streamName = streamName,
