@@ -1,11 +1,12 @@
 package io.flow.event
 
-import org.scalatest.{FunSpec, Matchers}
 import play.api.libs.json.Json
 
 import scala.util.{Failure, Success, Try}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
-class JsonUtilSpec extends FunSpec with Matchers {
+class JsonUtilSpec extends AnyFunSpec with Matchers {
 
   private[this] def validateError(expected: String)(f: => Any) = {
     Try {

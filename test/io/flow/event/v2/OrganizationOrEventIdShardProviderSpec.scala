@@ -1,9 +1,10 @@
 package io.flow.event.v2
 
-import org.scalatest.{MustMatchers, WordSpec}
 import play.api.libs.json.{JsObject, JsString, Json}
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 
-class OrganizationOrEventIdShardProviderSpec extends WordSpec with MustMatchers {
+class OrganizationOrEventIdShardProviderSpec extends AnyWordSpec with Matchers {
 
   case class CaseClass(i: Int, s: String)
 
