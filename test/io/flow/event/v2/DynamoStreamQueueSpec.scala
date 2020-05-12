@@ -56,7 +56,7 @@ class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
       record.recordType must be (typeOf[TestObject])
       record.discriminator must be (Some("TestObject"))
       record.newImage must not be (empty)
-      record.newImage("id") must be (new AttributeValue(testObject.id))
+      record.newImage.get.get("id") must be (new AttributeValue(testObject.id))
 
       q.shutdown()
     }

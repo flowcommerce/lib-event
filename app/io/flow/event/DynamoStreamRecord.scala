@@ -4,7 +4,6 @@ import com.amazonaws.services.dynamodbv2.model.AttributeValue
 import org.joda.time.DateTime
 import play.api.libs.json.{JsNull, JsValue}
 
-import scala.jdk.CollectionConverters._
 import scala.reflect.runtime.universe._
 
 object DynamoStreamRecord {
@@ -15,8 +14,8 @@ object DynamoStreamRecord {
     recordType = recordType,
     js = JsNull,
     eventName = DynamoStreamEventName(record.getEventName),
-    newImage = Option(record.getDynamodb.getNewImage).map(_.asScala.toMap).getOrElse(Map.empty),
-    oldImage = Option(record.getDynamodb.getOldImage).map(_.asScala.toMap).getOrElse(Map.empty)
+    newImage = Option(record.getDynamodb.getNewImage),
+    oldImage = Option(record.getDynamodb.getOldImage)
   )
 }
 
@@ -27,8 +26,8 @@ class DynamoStreamRecord(
   override val js: JsValue,
   val recordType: Type,
   val eventName: DynamoStreamEventName,
-  val newImage: Map[String, AttributeValue],
-  val oldImage: Map[String, AttributeValue]
+  val newImage: Option[java.util.Map[String, AttributeValue]],
+  val oldImage: Option[java.util.Map[String, AttributeValue]]
 ) extends Record(eventId, timestamp, arrivalTimestamp, js) {
   override lazy val discriminator: Option[String] = Some(recordType.typeSymbol.name.toString)
 }
