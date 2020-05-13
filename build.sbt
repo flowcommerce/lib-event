@@ -18,6 +18,7 @@ lazy val root = project
       "io.flow" %% "lib-akka-akka26" % "0.1.18",
       "io.flow" %% "lib-play-graphite-play28" % "0.1.46",
       "com.amazonaws" % "amazon-kinesis-client" % "1.13.3",
+      "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.1",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.3",
       "org.mockito" % "mockito-core" % "3.3.3" % Test,
