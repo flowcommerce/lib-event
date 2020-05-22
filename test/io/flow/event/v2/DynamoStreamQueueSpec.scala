@@ -54,7 +54,7 @@ class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
       val record = fetched.asInstanceOf[DynamoStreamRecord]
       record.eventName must be (DynamoStreamEventName.Insert)
       record.recordType must be (typeOf[TestObject])
-      record.discriminator must be (Some("TestObject"))
+      record.discriminator must be (Some("io.flow.lib.event.test.v0.models.TestObject"))
       record.newImage must not be (empty)
       record.newImage.get.get("id") must be (new AttributeValue(testObject.id))
 

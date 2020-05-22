@@ -29,9 +29,10 @@ class DynamoStreamRecord(
   val newImage: Option[java.util.Map[String, AttributeValue]],
   val oldImage: Option[java.util.Map[String, AttributeValue]]
 ) extends Record(eventId, timestamp, arrivalTimestamp, js) {
-  override lazy val discriminator: Option[String] = Some(recordType.typeSymbol.name.toString)
+  override lazy val discriminator: Option[String] = Some(recordType.typeSymbol.fullName)
 }
 
+// fixme rename to event type
 sealed trait DynamoStreamEventName
 object DynamoStreamEventName {
   case object Insert extends DynamoStreamEventName { override def toString = "INSERT" }
