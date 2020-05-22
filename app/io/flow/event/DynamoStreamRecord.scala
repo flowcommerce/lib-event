@@ -13,7 +13,7 @@ object DynamoStreamRecord {
     arrivalTimestamp = new DateTime(record.getDynamodb.getApproximateCreationDateTime),
     recordType = recordType,
     js = JsNull,
-    eventName = DynamoStreamEventName(record.getEventName),
+    eventType = DynamoStreamEventType(record.getEventName),
     newImage = Option(record.getDynamodb.getNewImage),
     oldImage = Option(record.getDynamodb.getOldImage)
   )
@@ -25,26 +25,25 @@ class DynamoStreamRecord(
   override val arrivalTimestamp: DateTime,
   override val js: JsValue,
   val recordType: Type,
-  val eventName: DynamoStreamEventName,
+  val eventType: DynamoStreamEventType,
   val newImage: Option[java.util.Map[String, AttributeValue]],
   val oldImage: Option[java.util.Map[String, AttributeValue]]
 ) extends Record(eventId, timestamp, arrivalTimestamp, js) {
   override lazy val discriminator: Option[String] = Some(recordType.typeSymbol.fullName)
 }
 
-// fixme rename to event type
-sealed trait DynamoStreamEventName
-object DynamoStreamEventName {
-  case object Insert extends DynamoStreamEventName { override def toString = "INSERT" }
-  case object Modify extends DynamoStreamEventName { override def toString = "MODIFY" }
-  case object Remove extends DynamoStreamEventName { override def toString = "REMOVE" }
-  final case class UNDEFINED(override val toString: String) extends DynamoStreamEventName
+sealed trait DynamoStreamEventType
+object DynamoStreamEventType {
+  case object Insert extends DynamoStreamEventType { override def toString = "INSERT" }
+  case object Modify extends DynamoStreamEventType { override def toString = "MODIFY" }
+  case object Remove extends DynamoStreamEventType { override def toString = "REMOVE" }
+  final case class UNDEFINED(override val toString: String) extends DynamoStreamEventType
 
   val all = scala.List(Insert, Modify, Remove)
   private[this] val byName = all.map(x => x.toString.toLowerCase -> x).toMap
 
-  def apply(value: String): DynamoStreamEventName = fromString(value).getOrElse(UNDEFINED(value))
-  def fromString(value: String): Option[DynamoStreamEventName] = byName.get(value.toLowerCase)
+  def apply(value: String): DynamoStreamEventType = fromString(value).getOrElse(UNDEFINED(value))
+  def fromString(value: String): Option[DynamoStreamEventType] = byName.get(value.toLowerCase)
 }
 
 

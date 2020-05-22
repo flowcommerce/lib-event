@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
 import com.amazonaws.services.dynamodbv2.model.AttributeValue
-import io.flow.event.{DynamoStreamEventName, DynamoStreamRecord}
+import io.flow.event.{DynamoStreamEventType, DynamoStreamRecord}
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
@@ -52,10 +52,10 @@ class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
       val fetched = consume[TestObject](q, eventId)
       fetched.isInstanceOf[DynamoStreamRecord] must be (true)
       val record = fetched.asInstanceOf[DynamoStreamRecord]
-      record.eventName must be (DynamoStreamEventName.Insert)
+      record.eventType must be (DynamoStreamEventType.Insert)
       record.recordType must be (typeOf[TestObject])
       record.discriminator must be (Some("io.flow.lib.event.test.v0.models.TestObject"))
-      record.newImage must not be (empty)
+      record.newImage must not be empty
       record.newImage.get.get("id") must be (new AttributeValue(testObject.id))
 
       q.shutdown()
