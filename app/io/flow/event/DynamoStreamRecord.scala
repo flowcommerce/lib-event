@@ -30,6 +30,8 @@ class DynamoStreamRecord(
   val oldImage: Option[java.util.Map[String, AttributeValue]]
 ) extends Record(eventId, timestamp, arrivalTimestamp, js) {
   override lazy val discriminator: Option[String] = Some(recordType.typeSymbol.fullName)
+
+  override def toString: String = s"DynamoStreamRecord($eventId,$timestamp,$arrivalTimestamp,$js,$recordType,$eventType,$newImage,$oldImage,$discriminator)"
 }
 
 sealed trait DynamoStreamEventType
