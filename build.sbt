@@ -15,7 +15,7 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-akka-akka26" % "0.1.21",
+      "io.flow" %% "lib-akka-akka26" % "0.1.22",
       "io.flow" %% "lib-play-graphite-play28" % "0.1.47",
       "com.amazonaws" % "amazon-kinesis-client" % "1.13.3",
       "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.1",
