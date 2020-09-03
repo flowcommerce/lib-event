@@ -67,7 +67,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       val fetched = consume[TestEvent](q, eventId)
       fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.id)
 
-      q.shutdown
+      q.shutdown()
     }
   }
 
@@ -84,7 +84,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
 
       println(s"SHUTTING DOWN FIRST CONSUMERS")
       Thread.sleep(1000)
-      q.shutdownConsumers
+      q.shutdownConsumers()
       Thread.sleep(20000)
 
       // Now create a second consumer and verify it does not see testObject1
@@ -98,7 +98,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       println(s"FOUND eventId3[$eventId3]: number records[${all.size}]")
       all.map(_.eventId) must equal(Seq(eventId2, eventId3))
 
-      q.shutdown
+      q.shutdown()
     }
   }
 
@@ -145,7 +145,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
         count.longValue() mustBe eventsSize
       }
 
-      q.shutdown
+      q.shutdown()
     }
   }
 

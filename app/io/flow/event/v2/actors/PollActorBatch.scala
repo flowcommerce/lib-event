@@ -30,7 +30,7 @@ trait PollActorBatch extends Actor with ActorLogging {
     * we then call process(record). Override this method to
     * filter specific records to process
     */
-  @silent def accepts(record: Record): Boolean = true
+  def accepts(@silent record: Record): Boolean = true
 
   /**
     * Allows the retrieved Seq[Record] to be transformed (filtered, modified, ...) before being processed
