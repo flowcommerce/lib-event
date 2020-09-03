@@ -80,7 +80,7 @@ trait Helpers {
       FiniteDuration(timeoutSeconds.toLong, "seconds")
     )
 
-    q.shutdown
+    q.shutdown()
 
     all.toSeq
   }

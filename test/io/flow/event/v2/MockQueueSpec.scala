@@ -122,7 +122,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
       q.stream[TestEvent].pending.size must be <= 1
     }
 
-    q.shutdownConsumers
+    q.shutdownConsumers()
 
     // eventually stream should not be almost empty any more
     eventuallyInNSeconds(2) {
@@ -137,7 +137,7 @@ class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with 
       q.stream[TestEvent].pending.size must be <= 1
     }
 
-    q.shutdownConsumers
+    q.shutdownConsumers()
 
     // eventually stream should not be almost empty any more
     eventuallyInNSeconds(2) {

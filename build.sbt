@@ -4,7 +4,7 @@ name := "lib-event-play28"
 
 organization := "io.flow"
 
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.3"
 
 lazy val root = project
   .in(file("."))
@@ -24,8 +24,8 @@ lazy val root = project
       "org.mockito" % "mockito-core" % "3.5.2" % Test,
       "io.flow" %% "lib-test-utils-play28" % "0.1.1" % Test,
       "org.scalatestplus" %% "mockito-3-2" % "3.1.2.0" % Test,
-      compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.6.0" cross CrossVersion.full),
-      "com.github.ghik" %% "silencer-lib" % "1.6.0" % Provided cross CrossVersion.full,
+      compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.7.0" cross CrossVersion.full),
+      "com.github.ghik" %% "silencer-lib" % "1.7.0" % Provided cross CrossVersion.full,
       "cloud.localstack" % "localstack-utils" % "0.2.1" % Test,
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
