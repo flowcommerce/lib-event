@@ -14,6 +14,7 @@ import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import com.amazonaws.services.kinesis.{AmazonKinesis, AmazonKinesisClientBuilder}
 import io.flow.util.{FlowEnvironment, Naming}
 
+import scala.annotation.nowarn
 import scala.reflect.runtime.universe._
 
 trait StreamConfig {
@@ -50,6 +51,7 @@ trait StreamConfig {
       }
     }
 
+    @nowarn("cat=deprecation") // https://github.com/awslabs/amazon-kinesis-client/issues/737
     val kclConf = new KinesisClientLibConfiguration(
       appName,
       streamName,
@@ -134,6 +136,7 @@ case class DynamoStreamConfig(
       }
     }
 
+    @nowarn("cat=deprecation")
     val kclConf = new KinesisClientLibConfiguration(appName, streamName, creds, workerId)
       .withInitialLeaseTableReadCapacity(dynamoCapacity)
       .withInitialLeaseTableWriteCapacity(dynamoCapacity)
