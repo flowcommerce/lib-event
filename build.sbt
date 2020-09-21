@@ -26,7 +26,7 @@ lazy val root = project
       "org.scalatestplus" %% "mockito-3-2" % "3.1.2.0" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.7.0" cross CrossVersion.full),
       "com.github.ghik" %% "silencer-lib" % "1.7.0" % Provided cross CrossVersion.full,
-      "cloud.localstack" % "localstack-utils" % "0.2.1" % Test,
+      "cloud.localstack" % "localstack-utils" % "0.2.2" % Test,
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
