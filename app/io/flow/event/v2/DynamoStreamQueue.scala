@@ -75,8 +75,7 @@ class DefaultDynamoStreamQueue @Inject() (
 
   private[v2] def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${tableNameFromType[T]}s"
   private def tableNameFromType[T: TypeTag]: String = {
-    val name = typeOf[T].toString
-    val typ = name.split("\\.").takeRight(1).mkString("")
+    val typ = typeOf[T].typeSymbol.name.toString
     StreamNames.toSnakeCase(typ)
   }
 }
