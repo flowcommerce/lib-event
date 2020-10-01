@@ -71,7 +71,6 @@ class DefaultDynamoStreamQueue @Inject() (
       endpoints = endpoints
     )
   }
-  import scala.reflect.runtime.universe._
 
   private[v2] def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${tableNameFromType[T]}s"
   private def tableNameFromType[T: TypeTag]: String = {
