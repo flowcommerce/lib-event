@@ -6,7 +6,7 @@ import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
 import io.flow.play.util.Config
-import io.flow.util.FlowEnvironment
+import io.flow.util.{FlowEnvironment, StreamNames}
 import javax.inject.{Inject, Singleton}
 
 import scala.concurrent.duration._
@@ -71,9 +71,14 @@ class DefaultDynamoStreamQueue @Inject() (
       endpoints = endpoints
     )
   }
+  import scala.reflect.runtime.universe._
 
-  private def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${typeName[T]}s"
-  private def typeName[T: TypeTag] = typeOf[T].typeSymbol.name.toString.toLowerCase
+  private[v2] def tableName[T: TypeTag] = s"${FlowEnvironment.Current}.${tableNameFromType[T]}s"
+  private def tableNameFromType[T: TypeTag]: String = {
+    val name = typeOf[T].toString
+    val typ = name.split("\\.").takeRight(1).mkString("")
+    StreamNames.toSnakeCase(typ)
+  }
 }
 
 @Singleton
