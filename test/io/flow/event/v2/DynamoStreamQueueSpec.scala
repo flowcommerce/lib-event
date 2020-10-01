@@ -15,7 +15,10 @@ import scala.reflect.runtime.universe._
 
 class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
   with DynamoStreamHelpers
-  with KinesisIntegrationSpec {
+  with KinesisIntegrationSpec
+{
+
+  def dynamoStreamQueue(implicit app: Application) = app.injector.instanceOf[DefaultDynamoStreamQueue]
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()
@@ -60,5 +63,9 @@ class DynamoStreamQueueSpec extends PlaySpec with GuiceOneAppPerSuite
 
       q.shutdown()
     }
+  }
+
+  "table name" in {
+    dynamoStreamQueue.tableName[TestObject] must equal("development.test_objects")
   }
 }
