@@ -9,6 +9,7 @@ import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.MockConfig
 import io.flow.play.metrics.MockMetricsSystem
+import io.flow.test.utils.FlowPlaySpec
 import play.api.Application
 
 import scala.concurrent.duration._
@@ -16,6 +17,7 @@ import scala.concurrent.{Await, Future}
 import scala.reflect.runtime.universe._
 
 trait DynamoStreamHelpers {
+  self: FlowPlaySpec =>
 
   import scala.concurrent.ExecutionContext.Implicits.global
   import scala.jdk.CollectionConverters._
@@ -41,18 +43,22 @@ trait DynamoStreamHelpers {
     ()
   }
 
+  def dynamoStreamQueue = init[DefaultDynamoStreamQueue]
+
   def withConfig[T](f: MockConfig => T)(implicit app: Application): T = {
     val c = config
     c.set("name", "lib-event-test")
     f(c)
   }
 
-  def withMockQueue[T](f: DynamoStreamQueue => T): T = {
+  def withMockQueue[T](f: DynamoStreamQueue => T): Unit = {
     val rollbar = RollbarLogger.SimpleLogger
-    f(new MockDynamoStreamQueue(rollbar))
+    val q = new MockDynamoStreamQueue(rollbar)
+    f(q)
+    q.shutdown()
   }
 
-  def withIntegrationQueue[T: TypeTag](f: DefaultDynamoStreamQueue => Unit)(implicit app: Application): Unit = {
+  def withIntegrationQueue[T: TypeTag](f: DefaultDynamoStreamQueue => _)(implicit app: Application): Unit = {
     withConfig { config =>
       val creds = new AWSCreds(config)
       val endpoints = app.injector.instanceOf[AWSEndpoints]
@@ -61,6 +67,7 @@ trait DynamoStreamHelpers {
       val q = new DefaultDynamoStreamQueue(config, creds, endpoints, metrics, rollbar)
       initTable(q.streamConfig[T])
       f(q)
+      q.shutdown()
     }
   }
 
