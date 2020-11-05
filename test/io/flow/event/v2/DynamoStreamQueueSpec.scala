@@ -1,7 +1,7 @@
 package io.flow.event.v2
 
 import com.amazonaws.services.dynamodbv2.model.AttributeValue
-import io.flow.event.{DynamoStreamEventType, DynamoStreamRecord}
+import io.flow.event.DynamoStreamRecord
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
@@ -32,7 +32,7 @@ class DynamoStreamQueueSpec extends FlowPlaySpec
       val testObject = Factories.makeTestObjectUpserted()
       val producer = q.producer[TestObjectUpserted]()
       val eventId = publishTestObject(producer, testObject)
-      println(s"Published object[$eventId]. Waiting for consumer")
+      println(s"Published object[$eventId]. Waiting for consumer...")
 
       val fetched = consume[TestObjectUpserted](q, eventId)
       fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.testObject.id)
@@ -43,12 +43,11 @@ class DynamoStreamQueueSpec extends FlowPlaySpec
     withIntegrationQueue[TestObject] { q =>
       val testObject = Factories.makeTestObject()
       val eventId = publishTestObject(q, testObject)
-      println(s"Published object[$eventId]. Waiting for consumer")
+      println(s"Published object[$eventId]. Waiting for consumer...")
 
       val fetched = consume[TestObject](q, eventId)
       fetched.isInstanceOf[DynamoStreamRecord] must be (true)
       val record = fetched.asInstanceOf[DynamoStreamRecord]
-      record.eventType must be (DynamoStreamEventType.Insert)
       record.recordType must be (typeOf[TestObject])
       record.discriminator must be (Some("io.flow.lib.event.test.v0.models.TestObject"))
       record.newImage must not be empty
