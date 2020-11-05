@@ -9,18 +9,19 @@ import io.flow.lib.event.test.v0.models.{TestObject, TestObjectUpserted}
 import io.flow.log.RollbarLogger
 import io.flow.play.clients.MockConfig
 import io.flow.play.metrics.MockMetricsSystem
-import play.api.Application
+import io.flow.test.utils.FlowPlaySpec
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.reflect.runtime.universe._
 
 trait DynamoStreamHelpers {
+  self: FlowPlaySpec =>
 
   import scala.concurrent.ExecutionContext.Implicits.global
   import scala.jdk.CollectionConverters._
 
-  private def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
+  private def config = init[MockConfig]
   private val publishCount = new AtomicInteger()
 
   private def initTable(stream: DynamoStreamConfig): Unit = {
@@ -41,26 +42,31 @@ trait DynamoStreamHelpers {
     ()
   }
 
-  def withConfig[T](f: MockConfig => T)(implicit app: Application): T = {
+  def dynamoStreamQueue: DefaultDynamoStreamQueue = init[DefaultDynamoStreamQueue]
+
+  def withConfig[T](f: MockConfig => T): T = {
     val c = config
     c.set("name", "lib-event-test")
     f(c)
   }
 
-  def withMockQueue[T](f: DynamoStreamQueue => T): T = {
+  def withMockQueue[T](f: DynamoStreamQueue => T): Unit = {
     val rollbar = RollbarLogger.SimpleLogger
-    f(new MockDynamoStreamQueue(rollbar))
+    val q = new MockDynamoStreamQueue(rollbar)
+    f(q)
+    q.shutdown()
   }
 
-  def withIntegrationQueue[T: TypeTag](f: DefaultDynamoStreamQueue => Unit)(implicit app: Application): Unit = {
+  def withIntegrationQueue[T: TypeTag](f: DefaultDynamoStreamQueue => _): Unit = {
     withConfig { config =>
       val creds = new AWSCreds(config)
-      val endpoints = app.injector.instanceOf[AWSEndpoints]
+      val endpoints = init[AWSEndpoints]
       val metrics = new MockMetricsSystem()
       val rollbar = RollbarLogger.SimpleLogger
       val q = new DefaultDynamoStreamQueue(config, creds, endpoints, metrics, rollbar)
       initTable(q.streamConfig[T])
       f(q)
+      q.shutdown()
     }
   }
 
