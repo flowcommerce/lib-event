@@ -28,6 +28,8 @@ class AWSCreds @Inject() (config: Config) extends AWSCredentialsProviderChain(
   * We run local versions of kinesis and dynamodb for testing through https://github.com/localstack/localstack
   */
 class AWSEndpoints @Inject() (environment: Environment) {
+
+  // only for local tests
   val region = "us-east-1"
 
   val kinesis = environment.mode match {

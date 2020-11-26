@@ -131,6 +131,7 @@ class DefaultQueue @Inject() (
       idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),
       maxLeasesForWorker = config.optionalInt(s"$sn.maxLeasesForWorker"),
       maxLeasesToStealAtOneTime = config.optionalInt(s"$sn.maxLeasesToStealAtOneTime"),
+      region = config.optionalString("aws.kinesis.region"),
       endpoints = endpoints,
     )
   }
