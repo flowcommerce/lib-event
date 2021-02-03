@@ -1,23 +1,23 @@
 package io.flow.event.v2
 
-import java.nio.ByteBuffer
-import java.util
-
-import com.amazonaws.SdkClientException
-import com.amazonaws.services.kinesis.model._
 import com.github.ghik.silencer.silent
 import io.flow.log.RollbarLogger
 import org.apache.http.NoHttpResponseException
 import play.api.libs.json.{Json, Writes}
+import software.amazon.awssdk.core.SdkBytes
+import software.amazon.awssdk.core.exception.SdkClientException
+import software.amazon.awssdk.services.kinesis.model._
 
+import java.util
+import java.util.concurrent.TimeUnit
 import scala.annotation.tailrec
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable.ListBuffer
+import scala.jdk.CollectionConverters._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Random, Success, Try}
 
 case class KinesisProducer[T](
-  config: StreamConfig,
+  config: KinesisStreamConfig,
   numberShards: Int,
   logger: RollbarLogger
 ) extends Producer[T] with StreamUsage {
@@ -61,7 +61,7 @@ case class KinesisProducer[T](
         val event = serializer.writes(evt)
         val partitionKey = shardProvider.get(evt, event)
         val data = Json.stringify(event).getBytes("UTF-8")
-        val record = new PutRecordsRequestEntry().withPartitionKey(partitionKey).withData(ByteBuffer.wrap(data))
+        val record = PutRecordsRequestEntry.builder().partitionKey(partitionKey).data(SdkBytes.fromByteArray(data)).build
 
         markProducedEvent(config.streamName, event)
 
@@ -86,14 +86,14 @@ case class KinesisProducer[T](
   private def publishBatchRetries(entries: util.List[PutRecordsRequestEntry], attempts: Int): Unit = {
     Try(doPublishBatch(entries)) match {
       case Success(response) =>
-        val failedRecordCount = response.getFailedRecordCount
+        val failedRecordCount = response.failedRecordCount
         if (failedRecordCount > 0) {
           if (attempts > MaxRetries) {
             // log errors
             val errorMessage = s"[FlowKinesisError] $failedRecordCount/${entries.size()} failed to be published"
             logger_.warn(errorMessage)
-            response.getRecords.asScala.foreach { resultEntry =>
-              if (Option(resultEntry.getErrorCode).isDefined || Option(resultEntry.getErrorMessage).isDefined)
+            response.records.asScala.foreach { resultEntry =>
+              if (Option(resultEntry.errorCode).isDefined || Option(resultEntry.errorMessage).isDefined)
                 logger_.info(s"[FlowKinesisError] $resultEntry")
             }
 
@@ -103,14 +103,14 @@ case class KinesisProducer[T](
               s"Retrying $attempts/$MaxRetries ...")
 
             val toRetries =
-              entries.asScala.zip(response.getRecords.asScala)
-                .collect { case (entry, res) if Option(res.getErrorCode).isDefined || Option(res.getErrorMessage).isDefined => entry }
+              entries.asScala.zip(response.records.asScala)
+                .collect { case (entry, res) if Option(res.errorCode).isDefined || Option(res.errorMessage).isDefined => entry }
             waitBeforeRetry()
             publishBatchRetries(toRetries.asJava, attempts + 1)
           }
         }
 
-      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KMSThrottlingException)) if attempts <= MaxRetries =>
+      case Failure(ex @ (_ : ProvisionedThroughputExceededException | _ : KmsThrottlingException)) if attempts <= MaxRetries =>
         attemptRetry(attempts, entries, ex)
 
       // specific case to catch
@@ -136,13 +136,13 @@ case class KinesisProducer[T](
     publishBatchRetries(entries, attempts + 1)
   }
 
-  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResult = {
-    val putRecordsRequest = new PutRecordsRequest().withStreamName(config.streamName).withRecords(entries)
-    kinesisClient.putRecords(putRecordsRequest)
+  private def doPublishBatch(entries: util.List[PutRecordsRequestEntry]): PutRecordsResponse = {
+    val putRecordsRequest = PutRecordsRequest.builder().streamName(config.streamName).records(entries).build()
+    kinesisClient.putRecords(putRecordsRequest).get(30, TimeUnit.SECONDS)
   }
 
   override def shutdown(): Unit = {
-    kinesisClient.shutdown()
+    kinesisClient.close()
   }
 
   /**
@@ -151,27 +151,34 @@ case class KinesisProducer[T](
   @silent private[this] def setup(): Unit = {
     Try {
       kinesisClient.createStream(
-        new CreateStreamRequest()
-          .withStreamName(config.streamName)
-          .withShardCount(numberShards)
-      )
+        CreateStreamRequest.builder()
+          .streamName(config.streamName)
+          .shardCount(numberShards)
+          .build()
+      ).get(30, TimeUnit.SECONDS)
     }.map { _ =>
       // set retention to three days to recover from Flow service outages lasting longer than the default 24 hours
       // e.g. when a service comes back online it can recover the last 3 days of events from the Kinesis stream
       kinesisClient.increaseStreamRetentionPeriod(
-        new IncreaseStreamRetentionPeriodRequest()
-          .withStreamName(config.streamName)
-          .withRetentionPeriodHours(72)
-      )
+        IncreaseStreamRetentionPeriodRequest.builder()
+          .streamName(config.streamName)
+          .retentionPeriodHours(72)
+          .build()
+      ).get(30, TimeUnit.SECONDS)
     }.map { _ =>
+      def status =
+        kinesisClient.describeStream(
+          DescribeStreamRequest.builder().streamName(config.streamName).build()
+        ).get(30, TimeUnit.SECONDS).streamDescription()
+
       // createStream() immediately returns. we need to wait for the stream to go from CREATING -> ACTIVE.
-      while (kinesisClient.describeStream(config.streamName).getStreamDescription.getStreamStatus == "CREATING") {
+      while (status.streamStatus == StreamStatus.CREATING) {
         logger_.withKeyValue("stream", config.streamName).info("waiting for stream to be created")
         Thread.sleep(1000)
       }
     }.recover {
       case NonFatal(ex) => {
-        ex match {
+        ex.getCause match {
           case _: ResourceInUseException => {
             // do nothing... already exists, ignore
           }

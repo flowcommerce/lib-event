@@ -11,7 +11,11 @@ import org.joda.time.DateTime
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Seconds, Span}
 import play.api.Application
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.model.{DeleteTableRequest, DescribeTableRequest, TableStatus}
+import software.amazon.awssdk.services.kinesis.model.{DeleteStreamRequest, DescribeStreamRequest, StreamStatus}
 
+import java.net.URI
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
@@ -83,6 +87,66 @@ trait Helpers {
     q.shutdown()
 
     all.toSeq
+  }
+
+  def deleteStream(sc: KinesisStreamConfig) = {
+    // delete stream
+    try {
+      sc.kinesisClient.deleteStream(
+        DeleteStreamRequest.builder()
+          .streamName(sc.streamName)
+          .build()
+      ).get()
+
+      def status =
+        sc.kinesisClient.describeStream(
+          DescribeStreamRequest.builder().streamName(sc.streamName).build()
+        ).get().streamDescription()
+
+      while (status.streamStatus() == StreamStatus.DELETING) {
+        println("waiting for stream to be deleted")
+        Thread.sleep(1000)
+      }
+
+    } catch {
+      case ex: Exception =>
+        ex.getCause match {
+          case _: software.amazon.awssdk.services.kinesis.model.ResourceNotFoundException => // ok
+        }
+    }
+
+    // delete dynamo table
+    try {
+      val dynamoBuilder = DynamoDbAsyncClient.builder()
+        .credentialsProvider(sc.awsCredentialsProvider.awsSDKv2Creds)
+
+      for {
+        ep <- sc.endpoints.dynamodb
+      } yield dynamoBuilder.endpointOverride(URI.create(ep))
+
+      val dynamo = dynamoBuilder.build()
+
+      dynamo.deleteTable(
+        DeleteTableRequest.builder()
+          .tableName(sc.dynamoTableName)
+          .build()
+      ).get()
+
+      def status =
+        dynamo.describeTable(
+          DescribeTableRequest.builder().tableName(sc.dynamoTableName).build()
+        ).get().table
+
+      while (status.tableStatus() == TableStatus.DELETING) {
+        println("waiting for table to be deleted")
+        Thread.sleep(1000)
+      }
+    } catch {
+      case e: Exception =>
+        e.getCause match {
+          case _: software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException => // ok
+        }
+    }
   }
 }
 

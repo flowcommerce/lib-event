@@ -19,6 +19,7 @@ lazy val root = project
       "io.flow" %% "lib-play-graphite-play28" % "0.1.79",
       "com.amazonaws" % "amazon-kinesis-client" % "1.14.0",
       "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.2",
+      "software.amazon.kinesis" % "amazon-kinesis-client" % "2.3.2",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.3",
       "org.mockito" % "mockito-core" % "3.6.28" % Test,
@@ -26,7 +27,7 @@ lazy val root = project
       "org.scalatestplus" %% "mockito-3-2" % "3.1.2.0" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.7.1" cross CrossVersion.full),
       "com.github.ghik" %% "silencer-lib" % "1.7.1" % Provided cross CrossVersion.full,
-      "cloud.localstack" % "localstack-utils" % "0.2.5" % Test
+      "cloud.localstack" % "localstack-utils" % "0.2.7" % Test
     ),
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
