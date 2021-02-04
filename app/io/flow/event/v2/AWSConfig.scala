@@ -4,6 +4,7 @@ import com.amazonaws.auth._
 import io.flow.play.util.Config
 import play.api.{Environment, Mode}
 import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, AwsCredentialsProviderChain, DefaultCredentialsProvider, StaticCredentialsProvider}
+import software.amazon.awssdk.core.SdkSystemSetting
 
 import javax.inject.Inject
 import scala.jdk.CollectionConverters._
@@ -58,10 +59,10 @@ class AWSEndpoints @Inject() (environment: Environment) {
 //    case _ => None
 //  }
 //
-//  environment.mode match {
-//    case Mode.Test =>
-//      // CBOR is a replacement for JSON. It is not yet supported by localstack
-//      System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
-//    case _ =>
-//  }
+  environment.mode match {
+    case Mode.Test =>
+      // CBOR is a replacement for JSON. It is not yet supported by localstack
+      System.setProperty(SdkSystemSetting.CBOR_ENABLED.property(), "false")
+    case _ =>
+  }
 }

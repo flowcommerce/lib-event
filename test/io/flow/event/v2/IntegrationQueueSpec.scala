@@ -102,7 +102,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
     withIntegrationQueue { q =>
       val consumersPoolSize = 1
       val producersPoolSize = 6
-      // the json conversion when publishing is quite heavy and therefore makes it hard to huge a much bigger number
+      // the json conversion when publishing is quite heavy and therefore makes it hard to use a much bigger number
       val eventsSize = 10000
       val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
       val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
