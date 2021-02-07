@@ -334,7 +334,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
         }
       }
 
-      eventuallyInNSeconds(50) {
+      eventuallyInNSeconds(120) {
         objs must be (empty)
       }
 
