@@ -105,7 +105,6 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       // the json conversion when publishing is quite heavy and therefore makes it hard to use a much bigger number
       val eventsSize = 10000
       val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
-      val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
 
       val producer = q.producer[TestEvent]()
 
@@ -113,9 +112,9 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
 
       // consume: start [[consumersPoolSize]] consumers consuming concurrently
       (1 to consumersPoolSize).foreach { _ =>
-        Future {
-          q.consume[TestEvent](recs => count.add(recs.length.toLong))
-        }(consumerContext)
+        q.consume[TestEvent](recs => {
+          count.add(recs.length.toLong)
+        })
       }
 
       val start = System.currentTimeMillis()
