@@ -16,6 +16,7 @@ import software.amazon.awssdk.services.dynamodb.model.{DeleteTableRequest, Descr
 import software.amazon.awssdk.services.kinesis.model.{DeleteStreamRequest, DescribeStreamRequest, StreamStatus}
 
 import java.net.URI
+import java.util.concurrent.TimeUnit
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
@@ -96,7 +97,7 @@ trait Helpers {
         DeleteStreamRequest.builder()
           .streamName(sc.streamName)
           .build()
-      ).get()
+      ).get(5, TimeUnit.MINUTES)
 
       def status =
         sc.kinesisClient.describeStream(
@@ -130,7 +131,7 @@ trait Helpers {
         DeleteTableRequest.builder()
           .tableName(sc.dynamoTableName)
           .build()
-      ).get()
+      ).get(1, TimeUnit.MINUTES)
 
       def status =
         dynamo.describeTable(

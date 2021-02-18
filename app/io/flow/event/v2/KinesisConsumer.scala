@@ -119,17 +119,20 @@ class ConsumerConfig(
     .cleanupLeasesUponShardCompletion(true)
     .maxLeasesForWorker(config.maxLeasesForWorker.getOrElse(configsBuilder.leaseManagementConfig.maxLeasesForWorker))
     .maxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(configsBuilder.leaseManagementConfig.maxLeasesToStealAtOneTime))
-    .failoverTimeMillis(30000)
+    .failoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
 
   val lifecycleConfig = configsBuilder.lifecycleConfig()
 
-  val metricsConfig = configsBuilder.metricsConfig().metricsLevel(MetricsLevel.NONE)
+  val metricsConfig = configsBuilder.metricsConfig()
+    .metricsLevel(MetricsLevel.NONE)
 
   val processorConfig = configsBuilder.processorConfig()
 
   val recordsFetcherFactory = {
     val f = new SimpleRecordsFetcherFactory()
-    config.idleMillisBetweenCalls.foreach(f.idleMillisBetweenCalls)
+    f.idleMillisBetweenCalls(
+      config.idleMillisBetweenCalls.getOrElse(1500L)
+    )
     f
   }
 
@@ -243,7 +246,7 @@ class DefaultKinesisRecordProcessor(
 
       // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).
       case e: InvalidStateException =>
-        logger.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
+        logger.error("[FlowKinesisError] Error while checkpointing. Cannot save checkpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
     }
   }
 }

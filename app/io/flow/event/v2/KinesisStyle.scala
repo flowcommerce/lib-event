@@ -17,7 +17,7 @@ abstract class KinesisStyleConsumer(
 
   protected val logger =
     rollbarLogger
-      .withKeyValue("class", this.getClass.getName)
+      .fingerprint(getClass.getName)
       .withKeyValue("stream", config.streamName)
       .withKeyValue("worker_id", config.workerId)
 

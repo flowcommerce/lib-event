@@ -155,7 +155,7 @@ case class KinesisProducer[T](
           .streamName(config.streamName)
           .shardCount(numberShards)
           .build()
-      ).get(30, TimeUnit.SECONDS)
+      ).get(5, TimeUnit.MINUTES)
     }.map { _ =>
       // set retention to three days to recover from Flow service outages lasting longer than the default 24 hours
       // e.g. when a service comes back online it can recover the last 3 days of events from the Kinesis stream
@@ -164,7 +164,7 @@ case class KinesisProducer[T](
           .streamName(config.streamName)
           .retentionPeriodHours(72)
           .build()
-      ).get(30, TimeUnit.SECONDS)
+      ).get(5, TimeUnit.MINUTES)
     }.map { _ =>
       def status =
         kinesisClient.describeStream(

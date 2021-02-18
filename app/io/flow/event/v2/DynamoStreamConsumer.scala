@@ -51,8 +51,8 @@ case class DynamoStreamConsumer(
       else
         logger.warn("Worker terminated with exception")
     } catch {
-      case _: TimeoutException =>
-        logger.error("Worker termination timed out")
+      case e: TimeoutException =>
+        logger.error("Worker termination timed out", e)
       case e @ (_: InterruptedException | _: ExecutionException) =>
         logger.error("Worker terminated with exception", e)
     }
@@ -92,7 +92,7 @@ class DynamoStreamRecordProcessor(
       .info("Initializing")
 
   override def shutdown(input: ShutdownInput): Unit = {
-    logger.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
+    logger.withKeyValue("shutdown_reason", input.getShutdownReason.toString).info("Shutting down")
     if (input.getShutdownReason == ShutdownReason.TERMINATE) {
       handleCheckpoint(input.getCheckpointer)
     }
@@ -150,7 +150,7 @@ class DynamoStreamRecordProcessor(
 
       // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).
       case e: InvalidStateException =>
-        logger.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
+        logger.error("[FlowKinesisError] Error while checkpointing. Cannot save checkpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
     }
   }
 }
