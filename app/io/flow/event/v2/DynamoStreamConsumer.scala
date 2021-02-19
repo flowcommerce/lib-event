@@ -131,7 +131,7 @@ class DynamoStreamRecordProcessor(
     import KinesisStyleRecordProcessor._
     try {
       checkpointer.checkpoint()
-    }  catch {
+    } catch {
       // Ignore handleCheckpoint if the processor instance has been shutdown (fail over).
       // i.e. Can't update handleCheckpoint - instance doesn't hold the lease for this shard.
       case e: ShutdownException =>
