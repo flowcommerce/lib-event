@@ -28,7 +28,7 @@ case class KinesisProducer[T](
 
   private[this] val logger_ =
     logger
-      .withKeyValue("class", this.getClass.getName)
+      .fingerprint(getClass.getName)
       .withKeyValue("stream", config.streamName)
 
   setup()

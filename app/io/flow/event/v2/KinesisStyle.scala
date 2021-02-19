@@ -45,7 +45,6 @@ trait KinesisStyleRecordProcessor {
 
   protected val logger = rollbarLogger
     .fingerprint(this.getClass.getName)
-    .withKeyValue("class", this.getClass.getName)
     .withKeyValue("stream", config.streamName)
     .withKeyValue("worker_id", config.workerId)
 
