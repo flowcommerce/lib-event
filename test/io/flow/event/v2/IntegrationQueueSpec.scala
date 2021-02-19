@@ -2,7 +2,6 @@ package io.flow.event.v2
 
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
-import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import io.flow.play.metrics.MockMetricsSystem
 import org.scalatestplus.play.PlaySpec
@@ -33,14 +32,13 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesForWorker", "8765")
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesToStealAtOneTime", "9012")
       val creds = new AWSCreds(config)
-      val rollbar = RollbarLogger.SimpleLogger
       val endpoints = app.injector.instanceOf[AWSEndpoints]
 
       val metrics = new MockMetricsSystem()
 
-      val queue = new DefaultQueue(config, creds, endpoints, metrics, rollbar)
+      val queue = new DefaultQueue(config, creds, endpoints, metrics, logger)
       val streamConfig = queue.streamConfig[TestEvent]
-      val recordProcessorFactory = KinesisRecordProcessorFactory(streamConfig, _ => (), metrics, rollbar)
+      val recordProcessorFactory = KinesisRecordProcessorFactory(streamConfig, _ => (), metrics, logger)
       val consumerConfig = new ConsumerConfig(streamConfig, creds.awsSDKv2Creds, recordProcessorFactory)
 
       consumerConfig.pollingConfig.maxRecords mustBe 1234
@@ -178,7 +176,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
         case Success(recs) =>
           recs
         case Failure(ex) =>
-          RollbarLogger.SimpleLogger.warn("Couldn't fetch stream contents", ex)
+          logger.warn("Couldn't fetch stream contents", ex)
           Nil
       }
     }

@@ -4,7 +4,6 @@ import io.flow.event.Record
 import io.flow.lib.event.test.v0.mock.Factories
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
-import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import org.joda.time.DateTime
 import org.mockito.ArgumentCaptor
@@ -27,7 +26,6 @@ import scala.util.Random
 class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPerSuite with Inspectors with Helpers with KinesisIntegrationSpec {
 
   private[this] val Utf8: String = "UTF-8"
-  private[this] val logger = RollbarLogger.SimpleLogger
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()

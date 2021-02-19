@@ -28,7 +28,7 @@ trait Helpers {
   private[this] def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
 
   val eventIdGenerator = IdGenerator("evt")
-  val logger = RollbarLogger.SimpleLogger
+  val logger = RollbarLogger.SimpleLogger.fingerprint(getClass.getName)
 
   def eventuallyInNSeconds[T](n: Int)(f: => T): T = {
     eventually(timeout(Span(n.toLong, Seconds))) {

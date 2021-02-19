@@ -20,7 +20,6 @@ import scala.util.{Failure, Success, Try}
 class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with MockitoSugar {
 
   private[this] val testObject = TestObject(id = "1")
-  private[this] val logger = RollbarLogger.SimpleLogger
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()
