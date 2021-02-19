@@ -19,7 +19,7 @@ import play.api.libs.json.Json
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 import software.amazon.awssdk.services.kinesis.model.{DescribeStreamRequest, DescribeStreamResponse, GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, PutRecordsRequest, PutRecordsResponse, ShardIteratorType, StreamDescription}
 
-import java.util.concurrent.CompletableFuture
+import java.util.concurrent.{CompletableFuture, TimeUnit}
 import scala.jdk.CollectionConverters._
 import scala.util.Random
 
@@ -136,7 +136,7 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
             .builder()
             .streamName(streamName)
             .build()
-        ).get().shards.asScala
+        ).get(20, TimeUnit.SECONDS).shards.asScala
 
         val iterator = client.getShardIterator(
           GetShardIteratorRequest
@@ -145,14 +145,14 @@ class KinesisProducerSpec extends PlaySpec with MockitoSugar with GuiceOneAppPer
             .shardId(shards.head.shardId)
             .shardIteratorType(ShardIteratorType.TRIM_HORIZON)
             .build()
-        ).get().shardIterator
+        ).get(20, TimeUnit.SECONDS).shardIterator
 
         val records = client.getRecords(
           GetRecordsRequest
             .builder()
             .shardIterator(iterator)
             .build()
-        ).get().records.asScala
+        ).get(20, TimeUnit.SECONDS).records.asScala
 
         records.length must be (1)
 

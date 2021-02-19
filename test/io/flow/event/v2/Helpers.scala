@@ -102,7 +102,7 @@ trait Helpers {
       def status =
         sc.kinesisClient.describeStream(
           DescribeStreamRequest.builder().streamName(sc.streamName).build()
-        ).get().streamDescription()
+        ).get(20, TimeUnit.SECONDS).streamDescription()
 
       while (status.streamStatus() == StreamStatus.DELETING) {
         logger.info("waiting for stream to be deleted")
@@ -136,7 +136,7 @@ trait Helpers {
       def status =
         dynamo.describeTable(
           DescribeTableRequest.builder().tableName(sc.dynamoTableName).build()
-        ).get().table
+        ).get(20, TimeUnit.SECONDS).table
 
       while (status.tableStatus() == TableStatus.DELETING) {
         logger.info("waiting for table to be deleted")
