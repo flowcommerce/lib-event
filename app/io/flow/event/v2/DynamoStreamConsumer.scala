@@ -126,7 +126,7 @@ class DynamoStreamRecordProcessor(
   }
 
   @tailrec
-  protected final def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, retries: Int = 0): Unit = {
+  protected final def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, attempts: Int = 0): Unit = {
 
     import KinesisStyleRecordProcessor._
     try {
@@ -140,12 +140,12 @@ class DynamoStreamRecordProcessor(
       // Backoff and re-attempt handleCheckpoint upon transient failures
       // ThrottlingException | KinesisClientLibDependencyException
       case e: KinesisClientLibRetryableException =>
-        if (retries >= MaxRetries) {
+        if (attempts >= MaxRetries) {
           logger.error(s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts", e)
         } else {
-          logger.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries.", e)
+          logger.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${attempts + 1} of $MaxRetries.", e)
           Thread.sleep(BackoffTimeInMillis)
-          handleCheckpoint(checkpointer, retries + 1)
+          handleCheckpoint(checkpointer, attempts + 1)
         }
 
       // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).

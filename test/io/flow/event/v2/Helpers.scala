@@ -28,6 +28,7 @@ trait Helpers {
   private[this] def config(implicit app: Application) = app.injector.instanceOf[MockConfig]
 
   val eventIdGenerator = IdGenerator("evt")
+  val logger = RollbarLogger.SimpleLogger
 
   def eventuallyInNSeconds[T](n: Int)(f: => T): T = {
     eventually(timeout(Span(n.toLong, Seconds))) {
@@ -46,9 +47,8 @@ trait Helpers {
       val creds = new AWSCreds(config)
       val endpoints = app.injector.instanceOf[AWSEndpoints]
       val metrics = new MockMetricsSystem()
-      val rollbar = RollbarLogger.SimpleLogger
 
-      f(new DefaultQueue(config, creds, endpoints, metrics, rollbar))
+      f(new DefaultQueue(config, creds, endpoints, metrics, logger))
     }
   }
 
@@ -105,7 +105,7 @@ trait Helpers {
         ).get().streamDescription()
 
       while (status.streamStatus() == StreamStatus.DELETING) {
-        println("waiting for stream to be deleted")
+        logger.info("waiting for stream to be deleted")
         Thread.sleep(1000)
       }
 
@@ -139,7 +139,7 @@ trait Helpers {
         ).get().table
 
       while (status.tableStatus() == TableStatus.DELETING) {
-        println("waiting for table to be deleted")
+        logger.info("waiting for table to be deleted")
         Thread.sleep(1000)
       }
     } catch {

@@ -155,7 +155,7 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
             .builder()
             .streamName(streamName)
             .build()
-        ).get().shards.asScala
+        ).get(20, TimeUnit.SECONDS).shards.asScala
 
         val iterator = client.getShardIterator(
           GetShardIteratorRequest
@@ -164,14 +164,14 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
             .shardId(shards.head.shardId)
             .shardIteratorType(ShardIteratorType.TRIM_HORIZON)
             .build()
-        ).get().shardIterator
+        ).get(20, TimeUnit.SECONDS).shardIterator
 
         val records = client.getRecords(
           GetRecordsRequest
             .builder()
             .shardIterator(iterator)
             .build()
-        ).get().records.asScala
+        ).get(20, TimeUnit.SECONDS).records.asScala
 
         records.toList
       } match {
