@@ -15,15 +15,15 @@ lazy val root = project
     libraryDependencies ++= Seq(
       ws,
       guice,
-      "io.flow" %% "lib-akka-akka26" % "0.1.43",
-      "io.flow" %% "lib-play-graphite-play28" % "0.1.84",
+      "io.flow" %% "lib-akka-akka26" % "0.1.44",
+      "io.flow" %% "lib-play-graphite-play28" % "0.1.85",
       "com.amazonaws" % "amazon-kinesis-client" % "1.14.1",
       "com.amazonaws" % "dynamodb-streams-kinesis-adapter" % "1.5.2",
       "software.amazon.kinesis" % "amazon-kinesis-client" % "2.3.2",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.3",
       "org.mockito" % "mockito-core" % "3.7.7" % Test,
-      "io.flow" %% "lib-test-utils-play28" % "0.1.23" % Test,
+      "io.flow" %% "lib-test-utils-play28" % "0.1.25" % Test,
       "org.scalatestplus" %% "mockito-3-2" % "3.1.2.0" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.7.2" cross CrossVersion.full),
       "com.github.ghik" %% "silencer-lib" % "1.7.2" % Provided cross CrossVersion.full,
@@ -56,4 +56,4 @@ publishTo := {
   }
 }
 
-version := "1.0.72"
+version := "1.0.75"
