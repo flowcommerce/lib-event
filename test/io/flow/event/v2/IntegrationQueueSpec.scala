@@ -1,24 +1,20 @@
 package io.flow.event.v2
 
-import java.util.UUID
-import java.util.concurrent.{Executors, TimeUnit}
-import java.util.concurrent.atomic.LongAdder
-
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.SimpleRecordsFetcherFactory
 import io.flow.lib.event.test.v0.models.json._
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject, TestObjectUpserted}
-import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import io.flow.play.metrics.MockMetricsSystem
 import org.scalatestplus.play.PlaySpec
 import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
+import software.amazon.awssdk.services.kinesis.model.{GetRecordsRequest, GetShardIteratorRequest, ListShardsRequest, ShardIteratorType}
 
-import scala.jdk.CollectionConverters._
+import java.util.UUID
+import java.util.concurrent.atomic.LongAdder
+import java.util.concurrent.{Executors, TimeUnit}
 import scala.concurrent.{ExecutionContext, Future}
+import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 
 class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with KinesisIntegrationSpec {
@@ -36,22 +32,20 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesForWorker", "8765")
       config.set("development_workstation.lib.event.test.v0.test_event.json.maxLeasesToStealAtOneTime", "9012")
       val creds = new AWSCreds(config)
-      val rollbar = RollbarLogger.SimpleLogger
       val endpoints = app.injector.instanceOf[AWSEndpoints]
 
-      val queue = new DefaultQueue(config, creds, endpoints, new MockMetricsSystem(), rollbar)
-      val kclConfig = queue.streamConfig[TestEvent].toKclConfig(creds)
+      val metrics = new MockMetricsSystem()
 
-      kclConfig.getMaxRecords mustBe 1234
-      kclConfig.getIdleTimeBetweenReadsInMillis mustBe 4321
-      kclConfig.getMaxLeasesForWorker mustBe 8765
-      kclConfig.getMaxLeasesToStealAtOneTime mustBe 9012
+      val queue = new DefaultQueue(config, creds, endpoints, metrics, logger)
+      val streamConfig = queue.streamConfig[TestEvent]
+      val recordProcessorFactory = KinesisRecordProcessorFactory(streamConfig, _ => (), metrics, logger)
+      val consumerConfig = new ConsumerConfig(streamConfig, creds.awsSDKv2Creds, recordProcessorFactory)
 
-      val rff = kclConfig.getRecordsFetcherFactory
-      rff mustBe a[SimpleRecordsFetcherFactory]
-      val field = classOf[SimpleRecordsFetcherFactory].getDeclaredField("idleMillisBetweenCalls")
-      field.setAccessible(true)
-      field.get(rff) mustBe 5678
+      consumerConfig.pollingConfig.maxRecords mustBe 1234
+      consumerConfig.pollingConfig.idleTimeBetweenReadsInMillis mustBe 4321
+      consumerConfig.leaseManagementConfig.maxLeasesForWorker mustBe 8765
+      consumerConfig.leaseManagementConfig.maxLeasesToStealAtOneTime mustBe 9012
+      consumerConfig.recordsFetcherFactory.idleMillisBetweenCalls mustBe 5678
     }
   }
 
@@ -106,10 +100,9 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
     withIntegrationQueue { q =>
       val consumersPoolSize = 1
       val producersPoolSize = 6
-      // the json conversion when publishing is quite heavy and therefore makes it hard to huge a much bigger number
+      // the json conversion when publishing is quite heavy and therefore makes it hard to use a much bigger number
       val eventsSize = 10000
       val producerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(producersPoolSize))
-      val consumerContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(consumersPoolSize))
 
       val producer = q.producer[TestEvent]()
 
@@ -117,9 +110,9 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
 
       // consume: start [[consumersPoolSize]] consumers consuming concurrently
       (1 to consumersPoolSize).foreach { _ =>
-        Future {
-          q.consume[TestEvent](recs => count.add(recs.length.toLong))
-        }(consumerContext)
+        q.consume[TestEvent](recs => {
+          count.add(recs.length.toLong)
+        })
       }
 
       val start = System.currentTimeMillis()
@@ -151,74 +144,45 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
 
   "shutdown consumers" in {
     def streamContents(q: DefaultQueue) = {
-      import com.amazonaws.services.kinesis.model._
-
       val client = q.streamConfig[TestEvent].kinesisClient
       val streamName = q.streamConfig[TestEvent].streamName
 
       Try {
         val shards = client.listShards(
-          new ListShardsRequest()
-            .withStreamName(streamName)
-        ).getShards.asScala
+          ListShardsRequest
+            .builder()
+            .streamName(streamName)
+            .build()
+        ).get(20, TimeUnit.SECONDS).shards.asScala
 
         val iterator = client.getShardIterator(
-          new GetShardIteratorRequest()
-            .withStreamName(streamName)
-            .withShardId(shards.head.getShardId)
-            .withShardIteratorType(ShardIteratorType.TRIM_HORIZON)
-        ).getShardIterator
+          GetShardIteratorRequest
+            .builder()
+            .streamName(streamName)
+            .shardId(shards.head.shardId)
+            .shardIteratorType(ShardIteratorType.TRIM_HORIZON)
+            .build()
+        ).get(20, TimeUnit.SECONDS).shardIterator
 
         val records = client.getRecords(
-          new GetRecordsRequest()
-            .withShardIterator(iterator)
-        ).getRecords.asScala
+          GetRecordsRequest
+            .builder()
+            .shardIterator(iterator)
+            .build()
+        ).get(20, TimeUnit.SECONDS).records.asScala
 
         records.toList
       } match {
         case Success(recs) =>
           recs
         case Failure(ex) =>
-          RollbarLogger.SimpleLogger.warn("Couldn't fetch stream contents", ex)
+          logger.warn("Couldn't fetch stream contents", ex)
           Nil
       }
     }
 
     withIntegrationQueue { q =>
-      val sc = q.streamConfig[TestEvent]
-
-      // delete stream
-      try {
-        sc.kinesisClient.deleteStream(sc.streamName)
-
-        while (sc.kinesisClient.describeStream(sc.streamName).getStreamDescription.getStreamStatus == "DELETING") {
-          println("waiting for stream to be deleted")
-          Thread.sleep(1000)
-        }
-
-      } catch {
-        case _: com.amazonaws.services.kinesis.model.ResourceNotFoundException => // ok
-      }
-
-      // delete dynamo table
-      try {
-        val dynamo = AmazonDynamoDBClientBuilder.standard()
-          .withCredentials(sc.awsCredentialsProvider)
-          .withEndpointConfiguration(
-            new EndpointConfiguration(sc.endpoints.dynamodb.get, sc.endpoints.region)
-          )
-          .build
-
-        dynamo.deleteTable(sc.dynamoTableName)
-
-        while (dynamo.describeTable(sc.dynamoTableName).getTable.getTableStatus == "DELETING") {
-          println("waiting for table to be deleted")
-          Thread.sleep(1000)
-        }
-      } catch {
-        case _: com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException => // ok
-        case _: com.amazonaws.AmazonServiceException => // delete this when https://github.com/localstack/localstack/pull/1461 is merged
-      }
+      deleteStream(q.streamConfig[TestEvent])
 
       // let's make sure the stream is empty
       streamContents(q) mustBe empty
@@ -279,6 +243,99 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
       }
 
       executor.shutdown()
+    }
+  }
+
+  "failing in a consumer causes records to be reprocessed" in {
+    withIntegrationQueue { queue =>
+      deleteStream(queue.streamConfig[TestEvent])
+
+      val producer = queue.producer[TestEvent]()
+
+      val asdf = publishTestObject(producer, TestObject(id = "asdf"))
+
+      var failed = false
+      var consumed = false
+
+      queue.consume[TestEvent] { recs =>
+        if (failed) {
+          recs.head.eventId must be (asdf)
+          consumed = true
+          ()
+        } else {
+          failed = true
+          throw new Exception("pretend crash")
+        }
+      }
+
+      eventuallyInNSeconds(120) {
+        consumed must be (true)
+      }
+
+      queue.shutdownConsumers()
+    }
+  }
+
+  "failing all retries causes record to be skipped" in {
+    withIntegrationQueue { queue =>
+      deleteStream(queue.streamConfig[TestEvent])
+
+      val producer = queue.producer[TestEvent]()
+
+      val asdf = publishTestObject(producer, TestObject(id = "asdf"))
+
+      var tries = 0
+      var gotHjkl = false
+
+      queue.consume[TestEvent] { recs =>
+        if (recs.head.eventId == asdf) {
+          tries += 1
+          println(s"Try $tries")
+          throw new Exception("pretend crash")
+        } else {
+          gotHjkl = true
+        }
+      }
+
+      eventuallyInNSeconds(120) {
+        tries must be (9)
+      }
+
+      publishTestObject(producer, TestObject(id = "hjkl"))
+
+      eventuallyInNSeconds(120) {
+        gotHjkl must be (true)
+      }
+
+      queue.shutdownConsumers()
+    }
+  }
+
+  "Events can still be processed even if consumer takes a long time" in {
+    withIntegrationQueue { queue =>
+      deleteStream(queue.streamConfig[TestEvent])
+
+      val producer = queue.producer[TestEvent]()
+
+      val objs = scala.collection.mutable.ArrayBuffer[String]()
+
+      for (i <- 1 to 10) {
+        objs += publishTestObject(producer, TestObject(id = i.toString))
+      }
+
+      queue.consume[TestEvent] { recs =>
+        Thread.sleep(20 * 1000)
+        recs.foreach { rec =>
+          objs must contain (rec.eventId)
+          objs -= rec.eventId
+        }
+      }
+
+      eventuallyInNSeconds(120) {
+        objs must be (empty)
+      }
+
+      queue.shutdownConsumers()
     }
   }
 
