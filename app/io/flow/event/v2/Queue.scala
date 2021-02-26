@@ -97,15 +97,15 @@ class DefaultQueue @Inject() (
      pollTime: FiniteDuration = FiniteDuration(5, "seconds")
   ): Unit = {
     markConsumesStream(streamName[T], typeOf[T])
-    val consumer = KinesisConsumer(
-      streamConfig[T],
-      creds.awsSDKv2Creds,
-      f,
-      metrics,
-      logger,
+    consumers.add(
+      DefaultKinesisConsumer(
+        streamConfig[T],
+        creds,
+        f,
+        metrics,
+        logger,
+      )
     )
-    consumer.start()
-    consumers.add(consumer)
     ()
   }
 
@@ -119,12 +119,13 @@ class DefaultQueue @Inject() (
 
   override def shutdown(): Unit = shutdownConsumers()
 
-  protected[v2] def streamConfig[T: TypeTag]: KinesisStreamConfig = {
+  protected[v2] def streamConfig[T: TypeTag] = {
     val sn = streamName[T]
-    KinesisStreamConfig(
+    DefaultStreamConfig(
       awsCredentialsProvider = creds,
       appName = appName,
       streamName = sn,
+      eventClass = typeOf[T],
       maxRecords = config.optionalInt(s"$sn.maxRecords"),
       idleMillisBetweenCalls = config.optionalLong(s"$sn.idleMillisBetweenCalls"),
       idleTimeBetweenReadsInMillis = config.optionalLong(s"$sn.idleTimeBetweenReadsMs"),

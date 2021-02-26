@@ -1,252 +1,214 @@
 package io.flow.event.v2
 
+import java.util.concurrent.{ExecutionException, Executors, TimeUnit, TimeoutException}
+
+import com.amazonaws.auth.AWSCredentialsProviderChain
+import com.amazonaws.services.kinesis.clientlibrary.exceptions._
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.IRecordProcessorCheckpointer
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.{IRecordProcessor, IRecordProcessorFactory}
+import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{ShutdownReason, Worker}
+import com.amazonaws.services.kinesis.clientlibrary.types.{InitializationInput, ProcessRecordsInput, ShutdownInput}
+import com.codahale.metrics.Histogram
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
-import io.flow.util.FlowEnvironment
 import org.joda.time.DateTime
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain
-import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
-import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
-import software.amazon.kinesis.common.{ConfigsBuilder, InitialPositionInStream, InitialPositionInStreamExtended}
-import software.amazon.kinesis.coordinator.Scheduler
-import software.amazon.kinesis.exceptions.{InvalidStateException, KinesisClientLibRetryableException, ShutdownException}
-import software.amazon.kinesis.lifecycle.events._
-import software.amazon.kinesis.metrics.MetricsLevel
-import software.amazon.kinesis.processor.{RecordProcessorCheckpointer, ShardRecordProcessor, ShardRecordProcessorFactory}
-import software.amazon.kinesis.retrieval.polling.{PollingConfig, SimpleRecordsFetcherFactory}
 
-import java.net.URI
-import java.util.concurrent.TimeUnit
 import scala.annotation.tailrec
 import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
-case class KinesisConsumer(
-  config: KinesisStreamConfig,
-  creds: AwsCredentialsProviderChain,
+abstract class KinesisConsumer (
+  config: StreamConfig,
+  logger: RollbarLogger,
+  worker: Worker
+) extends StreamUsage {
+
+  private[this] val exec = Executors.newSingleThreadExecutor()
+
+  private[this] val logger_ =
+    logger
+      .withKeyValue("class", this.getClass.getName)
+      .withKeyValue("stream", config.streamName)
+      .withKeyValue("worker_id", config.workerId)
+
+  logger_.info("Started")
+  exec.execute(worker)
+
+  def shutdown(): Unit = {
+    // kill the consumers first
+    try {
+      logger_.info("Shutting down consumer")
+      if (worker.startGracefulShutdown().get(2, TimeUnit.MINUTES))
+        logger_.info("Worker gracefully shutdown")
+      else
+        logger_.warn("Worker terminated with exception")
+    } catch {
+      case _: TimeoutException =>
+        logger_.error("Worker termination timed out")
+      case e @ (_: InterruptedException | _: ExecutionException) =>
+        logger_.error("Worker terminated with exception", e)
+    }
+
+    // then shut down the Executor and wait for all Runnables to finish
+    exec.shutdown()
+    if (exec.awaitTermination(2, TimeUnit.MINUTES))
+      logger_.info("Worker executor terminated")
+    else
+      logger_.warn("Worker executor termination timed out")
+  }
+}
+
+case class DefaultKinesisConsumer(
+  config: StreamConfig,
+  creds: AWSCredentialsProviderChain,
   f: Seq[Record] => Unit,
   metrics: MetricsSystem,
-  rollbarLogger: RollbarLogger,
-) extends KinesisStyleConsumer(config, rollbarLogger) {
-
-  private[this] val scheduler = {
-    val recordProcessorFactory = KinesisRecordProcessorFactory(config, f, metrics, logger)
-
-    val consumerConfig = new ConsumerConfig(config, creds, recordProcessorFactory)
-
-    new Scheduler(
-      consumerConfig.checkpointConfig,
-      consumerConfig.coordinatorConfig,
-      consumerConfig.leaseManagementConfig,
-      consumerConfig.lifecycleConfig,
-      consumerConfig.metricsConfig,
-      consumerConfig.processorConfig,
-      consumerConfig.retrievalConfig
-    )
-  }
-
-  override def start(): Unit = {
-    logger.info("Started")
-    executor.execute(scheduler)
-  }
-
-  override def shutdown(): Unit = {
-    Try {
-      logger.info("Shutting down consumers")
-      scheduler.startGracefulShutdown().get(1, TimeUnit.MINUTES)
-    } match {
-      case Success(_) => ()
-      case Failure(_) => scheduler.shutdown()
-    }
-
-    executor.shutdown()
-    if (executor.awaitTermination(2, TimeUnit.MINUTES))
-      logger.info("Worker executor terminated")
-    else
-      logger.warn("Worker executor termination timed out")
-
-    ()
-  }
-
-}
-
-
-class ConsumerConfig(
-  config: KinesisStreamConfig,
-  creds: AwsCredentialsProviderChain,
-  recordProcessorFactory: ShardRecordProcessorFactory
-) {
-  private val configsBuilder = {
-    val dynamoBuilder = DynamoDbAsyncClient.builder.credentialsProvider(creds)
-    for {
-      ep <- config.endpoints.dynamodb
-    } yield dynamoBuilder.endpointOverride(URI.create(ep))
-    val dynamoClient = dynamoBuilder.build
-
-    val cloudWatchClient = CloudWatchAsyncClient.builder.credentialsProvider(creds).build
-
-    new ConfigsBuilder(
-      config.streamName,
-      config.appName,
-      config.kinesisClient,
-      dynamoClient,
-      cloudWatchClient,
-      config.workerId,
-      recordProcessorFactory
-    )
-      .tableName(config.dynamoTableName)
-  }
-
-  private val dynamoCapacity = {
-    FlowEnvironment.Current match {
-      case FlowEnvironment.Production => 10 // 10 is the default value in the AWS SDK
-      case FlowEnvironment.Development | FlowEnvironment.Workstation => 1
-    }
-  }
-
-  val checkpointConfig = configsBuilder.checkpointConfig()
-
-  val coordinatorConfig = configsBuilder.coordinatorConfig()
-    .shardConsumerDispatchPollIntervalMillis(
-      config.idleTimeBetweenReadsInMillis
-        .getOrElse(configsBuilder.coordinatorConfig.shardConsumerDispatchPollIntervalMillis)
-    )
-
-  val leaseManagementConfig = configsBuilder.leaseManagementConfig()
-    .initialLeaseTableReadCapacity(dynamoCapacity)
-    .initialLeaseTableWriteCapacity(dynamoCapacity)
-    .cleanupLeasesUponShardCompletion(true)
-    .maxLeasesForWorker(config.maxLeasesForWorker.getOrElse(configsBuilder.leaseManagementConfig.maxLeasesForWorker))
-    .maxLeasesToStealAtOneTime(config.maxLeasesToStealAtOneTime.getOrElse(configsBuilder.leaseManagementConfig.maxLeasesToStealAtOneTime))
-    .failoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
-
-  val lifecycleConfig = configsBuilder.lifecycleConfig()
-
-  val metricsConfig = configsBuilder.metricsConfig()
-    .metricsLevel(MetricsLevel.NONE)
-
-  val processorConfig = configsBuilder.processorConfig()
-
-  val recordsFetcherFactory = {
-    val f = new SimpleRecordsFetcherFactory()
-    f.idleMillisBetweenCalls(
-      config.idleMillisBetweenCalls.getOrElse(1500L)
-    )
-    f
-  }
-
-  val pollingConfig = new PollingConfig(config.streamName, config.kinesisClient)
-    .maxRecords(config.maxRecords.getOrElse(1000))
-    .idleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.getOrElse(configsBuilder.coordinatorConfig().shardConsumerDispatchPollIntervalMillis))
-    .recordsFetcherFactory(recordsFetcherFactory)
-
-  val retrievalConfig = configsBuilder.retrievalConfig()
-    .retrievalSpecificConfig(pollingConfig)
-    .initialPositionInStreamExtended(InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.TRIM_HORIZON))
-}
+  logger: RollbarLogger,
+) extends KinesisConsumer(
+  config = config,
+  logger = logger,
+  worker = new Worker.Builder()
+    .recordProcessorFactory(KinesisRecordProcessorFactory(config, f, metrics, logger))
+    .config(config.toKclConfig(creds))
+    .kinesisClient(config.kinesisClient)
+    .build()
+)
 
 case class KinesisRecordProcessorFactory(
   config: StreamConfig,
   f: Seq[Record] => Unit,
   metrics: MetricsSystem,
   logger: RollbarLogger,
-) extends ShardRecordProcessorFactory {
+) extends IRecordProcessorFactory {
 
-  override def shardRecordProcessor(): ShardRecordProcessor = {
+  override def createProcessor(): IRecordProcessor = {
     new DefaultKinesisRecordProcessor(config, f, metrics, logger)
   }
 }
 
-class DefaultKinesisRecordProcessor(
-  override val config: StreamConfig,
+object KinesisRecordProcessor {
+  // Yes, it is arbitrary
+  private val MaxRetries = 8
+  private val BackoffTimeInMillis = 3000L
+}
+
+abstract class KinesisRecordProcessor(
+  config: StreamConfig,
   f: Seq[Record] => Unit,
-  override val metrics: MetricsSystem,
-  override val rollbarLogger: RollbarLogger,
-) extends ShardRecordProcessor with KinesisStyleRecordProcessor {
+  metrics: MetricsSystem,
+  logger: RollbarLogger,
+) extends IRecordProcessor {
+
+  import KinesisRecordProcessor._
+
+  val streamLagMetric: Histogram = metrics.registry.histogram(s"${config.streamName}.consumer.lagMillis")
+  val numRecordsMetric: Histogram = metrics.registry.histogram(s"${config.streamName}.consumer.numRecords")
+
+  protected val logger_ : RollbarLogger = logger
+    .withKeyValue("class", this.getClass.getName)
+    .withKeyValue("stream", config.streamName)
+    .withKeyValue("worker_id", config.workerId)
 
   override def initialize(input: InitializationInput): Unit =
-    logger
-      .withKeyValue("shard_id", input.shardId)
+    logger_
+      .withKeyValue("shard_id", input.getShardId)
       .info("Initializing")
 
-  override def processRecords(input: ProcessRecordsInput): Unit = {
-    logger.withKeyValue("count", input.records.size).info("Processing records")
+  override def processRecords(input: ProcessRecordsInput): Unit
 
-    streamLagMetric.update(input.millisBehindLatest)
-    numRecordsMetric.update(input.records.size)
-
-    val kinesisRecords = input.records.asScala.toSeq
-    val sequenceNumbers = kinesisRecords.map(_.sequenceNumber)
-    if (kinesisRecords.nonEmpty) {
-      val flowRecords = kinesisRecords.map { record =>
-        val buffer = record.data
-        val bytes = Array.fill[Byte](buffer.remaining)(0)
-        buffer.get(bytes)
-
-        Record.fromByteArray(
-          arrivalTimestamp = new DateTime(record.approximateArrivalTimestamp.toEpochMilli),
-          value = bytes
-        )
-      }
-      executeRetry(f, flowRecords, sequenceNumbers)
+  override def shutdown(input: ShutdownInput): Unit = {
+    logger_.withKeyValue("reason", input.getShutdownReason.toString).info("Shutting down")
+    if (input.getShutdownReason == ShutdownReason.TERMINATE) {
+      handleCheckpoint(input.getCheckpointer)
     }
-
-    kinesisRecords.lastOption.foreach { record =>
-      logger.withKeyValue("checkpoint", record.sequenceNumber).info("Checkpoint")
-      handleCheckpoint(input.checkpointer)
-    }
-  }
-
-  override def shutdownRequested(input: ShutdownRequestedInput): Unit = {
-    logger.withKeyValue("reason", "requested").info("Shutting down")
-    handleCheckpoint(input.checkpointer, inShutdown = true)
-  }
-
-  override def leaseLost(leaseLostInput: LeaseLostInput): Unit = {
-    logger.withKeyValue("reason", "leaseLost").info("Shutting down")
-  }
-
-  override def shardEnded(input: ShardEndedInput): Unit = {
-    logger.withKeyValue("reason", "shardEnded").info("Shutting down")
-    handleCheckpoint(input.checkpointer, inShutdown = true)
   }
 
   @tailrec
-  protected final def handleCheckpoint(checkpointer: RecordProcessorCheckpointer, retries: Int = 0, inShutdown: Boolean = false): Unit = {
-    import KinesisStyleRecordProcessor._
+  protected final def executeRetry(records: Seq[Record], sequenceNumbers: Seq[String], retries: Int = 0): Unit = {
+    Try(f(records)) match {
+      case Success(_) =>
+      case Failure(NonFatal(e)) =>
+        if (retries >= MaxRetries) {
+          val size = records.size
+          logger_
+            .withKeyValue("retries", retries)
+            .error(s"[FlowKinesisError] Error while processing records after $MaxRetries attempts. " +
+              s"$size records are skipped. Sequence numbers: ${sequenceNumbers.mkString(", ")}", e)
+        } else {
+          logger_
+            .withKeyValue("retries", retries)
+            .warn(s"[FlowKinesisWarn] Error while processing records (retry $retries/$MaxRetries). Retrying...", e)
+          Thread.sleep(BackoffTimeInMillis)
+          executeRetry(records, sequenceNumbers, retries + 1)
+        }
+      case Failure(e) => throw e
+    }
+  }
+
+  @tailrec
+  protected final def handleCheckpoint(checkpointer: IRecordProcessorCheckpointer, retries: Int = 0): Unit = {
+
+    import KinesisRecordProcessor._
     try {
       checkpointer.checkpoint()
-    } catch {
+    }  catch {
       // Ignore handleCheckpoint if the processor instance has been shutdown (fail over).
       // i.e. Can't update handleCheckpoint - instance doesn't hold the lease for this shard.
       case e: ShutdownException =>
-        logger.info("[FlowKinesisInfo] Caught error while checkpointing. Skipping checkpoint.", e)
+        logger_.info("[FlowKinesisInfo] Caught error while checkpointing. Skipping checkpoint.", e)
 
       // Backoff and re-attempt handleCheckpoint upon transient failures
       // ThrottlingException | KinesisClientLibDependencyException
       case e: KinesisClientLibRetryableException =>
         if (retries >= MaxRetries) {
-          val msg = s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts"
-          if (inShutdown) {
-            logger.info(msg, e)
-          } else {
-            logger.error(msg, e)
-          }
+          logger_.error(s"[FlowKinesisError] Error while checkpointing after $MaxRetries attempts", e)
         } else {
-          val msg = s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries."
-          if (inShutdown) {
-            logger.info(msg, e)
-          } else {
-            logger.warn(msg, e)
-          }
+          logger_.warn(s"[FlowKinesisWarn] Transient issue while checkpointing. Attempt ${retries + 1} of $MaxRetries.", e)
           Thread.sleep(BackoffTimeInMillis)
           handleCheckpoint(checkpointer, retries + 1)
         }
 
       // This indicates an issue with the DynamoDB table (check for table, provisioned IOPS).
       case e: InvalidStateException =>
-        logger.error("[FlowKinesisError] Error while checkpointing. Cannot save checkpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
+        logger_.error("[FlowKinesisError] Error while checkpointing. Cannot save handleCheckpoint to the DynamoDB table used by the Amazon Kinesis Client Library.", e)
+    }
+  }
+}
+
+class DefaultKinesisRecordProcessor(
+  config: StreamConfig,
+  f: Seq[Record] => Unit,
+  metrics: MetricsSystem,
+  logger: RollbarLogger,
+) extends KinesisRecordProcessor(config, f, metrics, logger) {
+
+  override def processRecords(input: ProcessRecordsInput): Unit = {
+    logger_.withKeyValue("count", input.getRecords.size).info("Processing records")
+
+    streamLagMetric.update(input.getMillisBehindLatest)
+    numRecordsMetric.update(input.getRecords.size)
+
+    val kinesisRecords = input.getRecords.asScala.toSeq
+    val sequenceNumbers = kinesisRecords.map(_.getSequenceNumber)
+    if (kinesisRecords.nonEmpty) {
+      val flowRecords = kinesisRecords.map { record =>
+        val buffer = record.getData
+        val bytes = Array.fill[Byte](buffer.remaining)(0)
+        buffer.get(bytes)
+
+        Record.fromByteArray(
+          arrivalTimestamp = new DateTime(record.getApproximateArrivalTimestamp),
+          value = bytes
+        )
+      }
+      executeRetry(flowRecords, sequenceNumbers)
+    }
+
+    kinesisRecords.lastOption.foreach { record =>
+      logger_.withKeyValue("checkpoint", record.getSequenceNumber).info("Checkpoint")
+      handleCheckpoint(input.getCheckpointer)
     }
   }
 }

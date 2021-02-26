@@ -5,6 +5,7 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import io.flow.event.Record
 import io.flow.lib.event.test.v0.models.{TestEvent, TestObject}
+import io.flow.log.RollbarLogger
 import io.flow.play.clients.ConfigModule
 import org.scalatestplus.mockito.MockitoSugar
 import org.scalatestplus.play.PlaySpec
@@ -19,6 +20,7 @@ import scala.util.{Failure, Success, Try}
 class MockQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helpers with MockitoSugar {
 
   private[this] val testObject = TestObject(id = "1")
+  private[this] val logger = RollbarLogger.SimpleLogger
 
   override def fakeApplication(): Application =
     new GuiceApplicationBuilder()

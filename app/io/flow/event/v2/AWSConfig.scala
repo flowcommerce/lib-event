@@ -1,42 +1,28 @@
 package io.flow.event.v2
 
+import com.amazonaws.SDKGlobalConfiguration
 import com.amazonaws.auth._
 import io.flow.play.util.Config
-import play.api.{Environment, Mode}
-import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, AwsCredentialsProviderChain, DefaultCredentialsProvider, StaticCredentialsProvider}
-import software.amazon.awssdk.core.SdkSystemSetting
-
 import javax.inject.Inject
+import play.api.{Environment, Mode}
+
 import scala.jdk.CollectionConverters._
 
-class AWSCreds @Inject() (config: Config) {
+class AWSCreds @Inject() (config: Config) extends AWSCredentialsProviderChain(
 
-  private val keys = for {
-    accessKey <- config.optionalString("aws.access.key")
-    secretKey <- config.optionalString("aws.secret.key")
-  } yield (accessKey, secretKey)
+  List(
 
-  lazy val awsSDKv1Creds =
-    new AWSCredentialsProviderChain(
-      List(
-        keys.map { case (accessKey, secretKey) =>
-          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))
-        },
-        Some(DefaultAWSCredentialsProviderChain.getInstance())
-      ).flatten.asJava
-    )
+    for {
+      accessKey <- config.optionalString("aws.access.key")
+      secretKey <- config.optionalString("aws.secret.key")
+    } yield new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)),
 
-  lazy val awsSDKv2Creds =
-    AwsCredentialsProviderChain.of(
-      List(
-        keys.map { case (accessKey, secretKey) =>
-          StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey))
-        },
-        Some(DefaultCredentialsProvider.create())
-      ).flatten: _*
-    )
+    // EC2 role
+    Some(DefaultAWSCredentialsProviderChain.getInstance())
 
-}
+  ).flatten.asJava
+
+)
 
 /**
   * We run local versions of kinesis and dynamodb for testing through https://github.com/localstack/localstack
@@ -44,20 +30,30 @@ class AWSCreds @Inject() (config: Config) {
 class AWSEndpoints @Inject() (environment: Environment) {
   val region = "us-east-1"
 
-  private val localstackInTest = environment.mode match {
+  val kinesis = environment.mode match {
     case Mode.Test => Some("http://localhost:4566") // localstack
     case _ => None
   }
 
-  val kinesis = localstackInTest
-  val dynamodb = localstackInTest
-  val dynamodbStreams = localstackInTest
-  val cloudWatch = localstackInTest
+  val dynamodb = environment.mode match {
+    case Mode.Test => Some("http://localhost:4566") // localstack
+    case _ => None
+  }
+
+  val dynamodbStreams = environment.mode match {
+    case Mode.Test => Some("http://localhost:4566") // localstack
+    case _ => None
+  }
+
+  val cloudWatch = environment.mode match {
+    case Mode.Test => Some("http://localhost:4566") // localstack
+    case _ => None
+  }
 
   environment.mode match {
     case Mode.Test =>
       // CBOR is a replacement for JSON. It is not yet supported by localstack
-      System.setProperty(SdkSystemSetting.CBOR_ENABLED.property(), "false")
+      System.setProperty(SDKGlobalConfiguration.AWS_CBOR_DISABLE_SYSTEM_PROPERTY, "true")
     case _ =>
   }
 }
