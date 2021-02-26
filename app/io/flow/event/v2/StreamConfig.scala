@@ -91,6 +91,8 @@ case class DefaultStreamConfig(
   idleTimeBetweenReadsInMillis: Option[Long],
   maxLeasesForWorker: Option[Int],
   maxLeasesToStealAtOneTime: Option[Int],
+  // if not provided, uses the default region provider chain
+  region: Option[String],
   eventClass: Type,
   endpoints: AWSEndpoints,
 ) extends StreamConfig {
@@ -105,6 +107,7 @@ case class DefaultStreamConfig(
           .withThrottledRetries(true)
           .withConnectionTTL(600000)
       )
+    region.foreach(kclb.setRegion)
 
     endpoints.kinesis.foreach { ep =>
       kclb.setEndpointConfiguration(new EndpointConfiguration(ep, endpoints.region))
