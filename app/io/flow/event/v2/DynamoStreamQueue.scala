@@ -20,7 +20,7 @@ class DefaultDynamoStreamQueue @Inject() (
   endpoints: AWSEndpoints,
   metrics: MetricsSystem,
   logger: RollbarLogger
-) extends Queue with StreamUsage with DynamoStreamQueue {
+) extends DynamoStreamQueue with StreamUsage {
 
   import scala.jdk.CollectionConverters._
 
@@ -35,15 +35,15 @@ class DefaultDynamoStreamQueue @Inject() (
     pollTime: FiniteDuration = 5.seconds
   ): Unit = {
     markConsumesStream(streamName[T], typeOf[T])
-    consumers.add(
-      DynamoStreamConsumer(
-        streamConfig[T],
-        creds,
-        f,
-        metrics,
-        logger,
-      )
+    val consumer = DynamoStreamConsumer(
+      streamConfig[T],
+      creds.awsSDKv1Creds,
+      f,
+      metrics,
+      logger,
     )
+    consumer.start()
+    consumers.add(consumer)
     ()
   }
 
