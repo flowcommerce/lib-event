@@ -65,6 +65,31 @@ class IntegrationQueueSpec extends PlaySpec with GuiceOneAppPerSuite with Helper
     }
   }
 
+  "can publish and consume an event using fanout" in {
+    withConfig { config =>
+      config.set("development_workstation.lib.event.test.v0.test_event.json.enhancedFanOut", "true")
+      val creds = new AWSCreds(config)
+      val endpoints = app.injector.instanceOf[AWSEndpoints]
+
+      val metrics = new MockMetricsSystem()
+
+      val queue = new DefaultQueue(config, creds, endpoints, metrics, logger)
+
+      val testObject = TestObject(UUID.randomUUID().toString)
+
+      val producer = queue.producer[TestEvent]()
+
+      val eventId = publishTestObject(producer, testObject)
+      println(s"Published event[$eventId]. Waiting for consumer")
+
+      val fetched = consume[TestEvent](queue, eventId)
+      fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.id)
+
+      queue.shutdown()
+    }
+  }
+
+
   "keeps track of sequence number" in {
     withIntegrationQueue { q =>
       val testObject1 = TestObject(UUID.randomUUID().toString)

@@ -14,6 +14,7 @@ import software.amazon.kinesis.exceptions.{InvalidStateException, KinesisClientL
 import software.amazon.kinesis.lifecycle.events._
 import software.amazon.kinesis.metrics.MetricsLevel
 import software.amazon.kinesis.processor.{RecordProcessorCheckpointer, ShardRecordProcessor, ShardRecordProcessorFactory}
+import software.amazon.kinesis.retrieval.fanout.FanOutConfig
 import software.amazon.kinesis.retrieval.polling.{PollingConfig, SimpleRecordsFetcherFactory}
 
 import java.net.URI
@@ -141,8 +142,14 @@ class ConsumerConfig(
     .idleTimeBetweenReadsInMillis(config.idleTimeBetweenReadsInMillis.getOrElse(configsBuilder.coordinatorConfig().shardConsumerDispatchPollIntervalMillis))
     .recordsFetcherFactory(recordsFetcherFactory)
 
+  val fanOutConfig = new FanOutConfig(config.kinesisClient)
+    .streamName(config.streamName)
+    .applicationName(config.appName)
+
   val retrievalConfig = configsBuilder.retrievalConfig()
-    .retrievalSpecificConfig(pollingConfig)
+    .retrievalSpecificConfig(
+      if (config.enhancedFanOut) fanOutConfig else pollingConfig
+    )
     .initialPositionInStreamExtended(InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.TRIM_HORIZON))
 }
 
