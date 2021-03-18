@@ -124,7 +124,7 @@ class ConsumerConfig(
   val lifecycleConfig = configsBuilder.lifecycleConfig()
 
   val metricsConfig = configsBuilder.metricsConfig()
-    .metricsLevel(MetricsLevel.NONE)
+    .metricsLevel(config.metricsLevel)
 
   val processorConfig = configsBuilder.processorConfig()
 
