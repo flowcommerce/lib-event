@@ -12,7 +12,6 @@ import software.amazon.kinesis.common.{ConfigsBuilder, InitialPositionInStream, 
 import software.amazon.kinesis.coordinator.Scheduler
 import software.amazon.kinesis.exceptions.{InvalidStateException, KinesisClientLibRetryableException, ShutdownException}
 import software.amazon.kinesis.lifecycle.events._
-import software.amazon.kinesis.metrics.MetricsLevel
 import software.amazon.kinesis.processor.{RecordProcessorCheckpointer, ShardRecordProcessor, ShardRecordProcessorFactory}
 import software.amazon.kinesis.retrieval.polling.{PollingConfig, SimpleRecordsFetcherFactory}
 
