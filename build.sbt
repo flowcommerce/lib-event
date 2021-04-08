@@ -22,7 +22,7 @@ lazy val root = project
       "software.amazon.kinesis" % "amazon-kinesis-client" % "2.3.4",
       // evict aws dependency on allegedly incompatible "jackson-dataformat-cbor" % "2.6.7",
       "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.10.3",
-      "org.mockito" % "mockito-core" % "3.8.0" % Test,
+      "org.mockito" % "mockito-core" % "3.9.0" % Test,
       "io.flow" %% "lib-test-utils-play28" % "0.1.27" % Test,
       "org.scalatestplus" %% "mockito-3-2" % "3.1.2.0" % Test,
       compilerPlugin("com.github.ghik" %% "silencer-plugin" % "1.7.3" cross CrossVersion.full),
