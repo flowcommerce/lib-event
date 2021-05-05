@@ -1,6 +1,6 @@
 package io.flow.event
 
-import com.github.ghik.silencer.silent
+import scala.annotation.nowarn
 import io.flow.lib.event.test.v0.models.TestEvent
 import io.flow.play.clients.ConfigModule
 import io.flow.util.FlowEnvironment
@@ -9,7 +9,7 @@ import org.scalatestplus.play.guice.GuiceOneAppPerSuite
 import play.api.Application
 import play.api.inject.guice.GuiceApplicationBuilder
 
-@silent class StreamNamesSpec extends PlaySpec with GuiceOneAppPerSuite {
+@nowarn class StreamNamesSpec extends PlaySpec with GuiceOneAppPerSuite {
 
   private[this] val dev = StreamNames(FlowEnvironment.Development)
   private[this] val ws = StreamNames(FlowEnvironment.Workstation)

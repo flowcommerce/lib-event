@@ -1,6 +1,6 @@
 package io.flow.event.v2
 
-import com.github.ghik.silencer.silent
+import scala.annotation.nowarn
 import io.flow.log.RollbarLogger
 import org.apache.http.NoHttpResponseException
 import play.api.libs.json.{Json, Writes}
@@ -148,7 +148,7 @@ case class KinesisProducer[T](
   /**
     * Sets up the stream name in ec2, either an error or Unit
     **/
-  @silent private[this] def setup(): Unit = {
+  @nowarn private[this] def setup(): Unit = {
     Try {
       kinesisClient.createStream(
         CreateStreamRequest.builder()
