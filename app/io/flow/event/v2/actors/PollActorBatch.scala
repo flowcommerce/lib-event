@@ -1,7 +1,7 @@
 package io.flow.event.v2.actors
 
 import akka.actor.{Actor, ActorLogging, ActorSystem}
-import com.github.ghik.silencer.silent
+import scala.annotation.nowarn
 import io.flow.akka.SafeReceive
 import io.flow.event.Record
 import io.flow.event.v2.{MockQueue, Queue}
@@ -30,7 +30,7 @@ trait PollActorBatch extends Actor with ActorLogging {
     * we then call process(record). Override this method to
     * filter specific records to process
     */
-  def accepts(@silent record: Record): Boolean = true
+  def accepts(@nowarn record: Record): Boolean = true
 
   /**
     * Allows the retrieved Seq[Record] to be transformed (filtered, modified, ...) before being processed
