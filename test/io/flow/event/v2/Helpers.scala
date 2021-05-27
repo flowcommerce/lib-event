@@ -113,6 +113,10 @@ trait Helpers {
       case ex: Exception =>
         ex.getCause match {
           case _: software.amazon.awssdk.services.kinesis.model.ResourceNotFoundException => // ok
+          case c =>
+            logger
+              .withKeyValue("error", c.getMessage)
+              .warn("error deleting stream")
         }
     }
 
@@ -146,6 +150,10 @@ trait Helpers {
       case e: Exception =>
         e.getCause match {
           case _: software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException => // ok
+          case c =>
+            logger
+              .withKeyValue("error", c.getMessage)
+              .warn("error deleting dynamo table")
         }
     }
   }
