@@ -82,13 +82,7 @@ trait DynamoStreamHelpers {
     obj.eventId
   }
 
-  def consume[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Record = {
-    consumeUntil[T](q, eventId, timeoutSeconds).find(_.eventId == eventId).getOrElse {
-      sys.error(s"Failed to find eventId[$eventId]")
-    }
-  }
-
-  def consumeUntil[T: TypeTag](q: Queue, eventId: String, timeoutSeconds: Int = 120): Seq[Record] = {
+  def consumeFirst[T: TypeTag](q: Queue, timeoutSeconds: Int = 60): Record = {
     val all = scala.collection.mutable.ListBuffer[Record]()
     q.consume[T] { recs =>
       all ++= recs
@@ -96,7 +90,7 @@ trait DynamoStreamHelpers {
 
     Await.result(
       Future {
-        while (!all.exists(_.eventId == eventId)) {
+        while (all.isEmpty) {
           Thread.sleep(100)
         }
       },
@@ -105,6 +99,6 @@ trait DynamoStreamHelpers {
 
     q.shutdown()
 
-    all.toSeq
+    all.toSeq.head
   }
 }
