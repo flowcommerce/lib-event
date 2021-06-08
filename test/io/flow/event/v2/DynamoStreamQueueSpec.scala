@@ -34,19 +34,20 @@ class DynamoStreamQueueSpec extends FlowPlaySpec
       val eventId = publishTestObject(producer, testObject)
       println(s"Published object[$eventId]. Waiting for consumer...")
 
-      val fetched = consume[TestObjectUpserted](q, eventId)
-      fetched.js.as[TestObjectUpserted].testObject.id must equal(testObject.testObject.id)
+      val fetched = consumeFirst[TestObjectUpserted](q)
+      val upserted = fetched.js.as[TestObjectUpserted]
+      upserted.eventId must equal(eventId)
+      upserted.testObject.id must equal(testObject.testObject.id)
     }
   }
 
   "can consume an event" in {
-    pending // TODO: not sure how this ever worked
     withIntegrationQueue[TestObject] { q =>
       val testObject = Factories.makeTestObject()
-      val eventId = publishTestObject(q, testObject)
-      println(s"Published object[$eventId]. Waiting for consumer...")
+      publishTestObject(q, testObject)
+      println(s"Published $testObject. Waiting for consumer...")
 
-      val fetched = consume[TestObject](q, eventId)
+      val fetched = consumeFirst[TestObject](q)
       fetched.isInstanceOf[DynamoStreamRecord] must be (true)
       val record = fetched.asInstanceOf[DynamoStreamRecord]
       record.recordType must be (typeOf[TestObject])
