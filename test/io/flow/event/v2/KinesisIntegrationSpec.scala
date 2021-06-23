@@ -17,6 +17,8 @@ trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
 
     val conf = LocalstackDockerConfiguration.builder()
       .environmentVariables(Map("SERVICES" -> s"$KINESIS,$DYNAMO,$DYNAMO_STREAMS,$CLOUDWATCH").asJava)
+      .imageName("localstack/localstack")
+      .imageTag("0.12.12")
       .pullNewImage(!imagePresent)
       .build()
 
