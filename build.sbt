@@ -39,7 +39,6 @@ lazy val root = project
       "org.scalatestplus" %% "mockito-3-2" % "3.1.2.0" % Test,
       "cloud.localstack" % "localstack-utils" % "0.2.13" % Test
     ),
-    dependencyOverrides += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2",
     resolvers += "Typesafe repository" at "https://repo.typesafe.com/typesafe/releases/",
     resolvers += "scalaz-bintray" at "https://dl.bintray.com/scalaz/releases",
     resolvers += "Artifactory" at "https://flow.jfrog.io/flow/libs-release/",
