@@ -2,14 +2,13 @@ package io.flow.event.v2
 
 import cloud.localstack.Localstack
 import cloud.localstack.ServiceName.{CLOUDWATCH, DYNAMO, DYNAMO_STREAMS, KINESIS}
-import cloud.localstack.docker.annotation.{LocalstackDockerConfiguration, LocalstackDockerProperties}
+import cloud.localstack.docker.annotation.LocalstackDockerConfiguration
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
 import scala.jdk.CollectionConverters._
 import scala.language.postfixOps
 import scala.sys.process._
 
-@LocalstackDockerProperties(imageTag = "84f0b1b7bf69")
 trait KinesisIntegrationSpec extends BeforeAndAfterAll { this: Suite =>
   private val localstack = Localstack.INSTANCE
 
