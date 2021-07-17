@@ -1,14 +1,14 @@
 package io.flow.event.v2
 
 import java.util.concurrent.ConcurrentLinkedQueue
-
 import io.flow.event.Record
 import io.flow.log.RollbarLogger
 import io.flow.play.metrics.MetricsSystem
 import io.flow.play.util.Config
 import io.flow.util.StreamNames
-import javax.inject.Inject
+import software.amazon.kinesis.metrics.MetricsLevel
 
+import javax.inject.Inject
 import scala.concurrent.duration.FiniteDuration
 import scala.reflect.runtime.universe._
 
@@ -131,6 +131,9 @@ class DefaultQueue @Inject() (
       maxLeasesForWorker = config.optionalInt(s"$sn.maxLeasesForWorker"),
       maxLeasesToStealAtOneTime = config.optionalInt(s"$sn.maxLeasesToStealAtOneTime"),
       endpoints = endpoints,
+      metricsLevel = MetricsLevel.fromName(
+        config.optionalString(s"$sn.metricsLevel").getOrElse("NONE")
+      ),
     )
   }
 }

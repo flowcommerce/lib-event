@@ -6,13 +6,13 @@ import com.amazonaws.services.cloudwatch.{AmazonCloudWatch, AmazonCloudWatchClie
 import com.amazonaws.services.dynamodbv2.streamsadapter.AmazonDynamoDBStreamsAdapterClient
 import com.amazonaws.services.dynamodbv2.{AmazonDynamoDB, AmazonDynamoDBClientBuilder, AmazonDynamoDBStreamsClientBuilder}
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.{InitialPositionInStream, KinesisClientLibConfiguration}
-import com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel
 import io.flow.util.{FlowEnvironment, Naming}
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.retry.RetryPolicy
 import software.amazon.awssdk.http.Protocol
 import software.amazon.awssdk.http.nio.netty.{Http2Configuration, NettyNioAsyncHttpClient}
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+import software.amazon.kinesis.metrics.MetricsLevel
 
 import java.net.{InetAddress, URI}
 import java.time.Duration
@@ -54,6 +54,7 @@ case class KinesisStreamConfig(
   maxLeasesForWorker: Option[Int],
   maxLeasesToStealAtOneTime: Option[Int],
   endpoints: AWSEndpoints,
+  metricsLevel: MetricsLevel,
 ) extends StreamConfig {
 
   val kinesisClient: KinesisAsyncClient = {
@@ -127,7 +128,7 @@ case class DynamoStreamConfig(
       .withMaxRecords(maxRecords.getOrElse(1000))
       .withMaxLeasesForWorker(maxLeasesForWorker.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_FOR_WORKER))
       .withMaxLeasesToStealAtOneTime(maxLeasesToStealAtOneTime.getOrElse(KinesisClientLibConfiguration.DEFAULT_MAX_LEASES_TO_STEAL_AT_ONE_TIME))
-      .withMetricsLevel(MetricsLevel.NONE)
+      .withMetricsLevel(com.amazonaws.services.kinesis.metrics.interfaces.MetricsLevel.NONE)
       .withFailoverTimeMillis(30000) // See https://github.com/awslabs/amazon-kinesis-connectors/issues/10
 
     endpoints.kinesis.foreach(kclConf.withKinesisEndpoint)

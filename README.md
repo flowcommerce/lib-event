@@ -7,6 +7,18 @@ Events publishing and receiving lib
 
   go run release.go
 
+## Configuration
+
+```hocon
+production.experience.event.v0.experience_event.json = {
+  maxRecords = 1000
+  idleMillisBetweenCalls = 1500
+  idleTimeBetweenReadsMs = 1000
+  maxLeasesForWorker = 2147483647
+  maxLeasesToStealAtOneTime = 1
+  metricsLevel = "NONE" // "NONE", "SUMMARY", or "DETAILED"
+}
+```
 
 ## Testing
 
