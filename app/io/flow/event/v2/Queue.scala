@@ -131,6 +131,7 @@ class DefaultQueue @Inject() (
       maxLeasesForWorker = config.optionalInt(s"$sn.maxLeasesForWorker"),
       maxLeasesToStealAtOneTime = config.optionalInt(s"$sn.maxLeasesToStealAtOneTime"),
       endpoints = endpoints,
+      enhancedFanOut = config.optionalBoolean(s"$sn.enhancedFanOut").getOrElse(false),
     )
   }
 }

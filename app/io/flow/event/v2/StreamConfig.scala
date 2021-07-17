@@ -54,6 +54,7 @@ case class KinesisStreamConfig(
   maxLeasesForWorker: Option[Int],
   maxLeasesToStealAtOneTime: Option[Int],
   endpoints: AWSEndpoints,
+  enhancedFanOut: Boolean,
 ) extends StreamConfig {
 
   val kinesisClient: KinesisAsyncClient = {
